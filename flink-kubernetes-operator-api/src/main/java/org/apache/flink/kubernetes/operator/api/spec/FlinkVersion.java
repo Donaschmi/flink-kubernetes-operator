@@ -19,6 +19,7 @@
 package org.apache.flink.kubernetes.operator.api.spec;
 
 import org.apache.flink.annotation.Experimental;
+import org.slf4j.LoggerFactory;
 
 /** Enumeration for supported Flink versions. */
 @Experimental
@@ -31,6 +32,7 @@ public enum FlinkVersion {
     v1_18;
 
     public boolean isNewerVersionThan(FlinkVersion otherVersion) {
+        LoggerFactory.getLogger(FlinkVersion.class).debug("Flink version: " + otherVersion);
         return this.ordinal() > otherVersion.ordinal();
     }
 

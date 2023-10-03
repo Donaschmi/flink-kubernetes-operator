@@ -15,11 +15,12 @@
  * limitations under the License.
  */
 
-package org.apache.flink.kubernetes.operator.autoscaler;
+package org.apache.flink.kubernetes.operator.autoscaler.justin;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.apache.flink.kubernetes.operator.autoscaler.ScalingMetricEvaluator;
 import org.apache.flink.kubernetes.operator.autoscaler.metrics.EvaluatedScalingMetric;
 import org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric;
 import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
@@ -31,11 +32,7 @@ import java.util.Map;
  */
 @Data
 @NoArgsConstructor
-public class ScalingSummary {
-
-    private int currentParallelism;
-
-    private int newParallelism;
+public class JustinSummary {
 
     private ResourceProfile currentResourceProfile;
 
@@ -43,21 +40,21 @@ public class ScalingSummary {
 
     private Map<ScalingMetric, EvaluatedScalingMetric> metrics;
 
-    public ScalingSummary(
-            int currentParallelism,
-            int newParallelism,
+    public JustinSummary(
+            ResourceProfile currentResourceProfile,
+            ResourceProfile newResourceProfile,
             Map<ScalingMetric, EvaluatedScalingMetric> metrics) {
-        if (currentParallelism == newParallelism) {
-            //throw new IllegalArgumentException(
-            //        "Current parallelism should not be equal to newParallelism during scaling.");
+        if (currentResourceProfile.equals(newResourceProfile)) {
+            throw new IllegalArgumentException(
+                    "Current resource profile should not be equal to new resource profile during scaling.");
         }
-        this.currentParallelism = currentParallelism;
-        this.newParallelism = newParallelism;
+        this.currentResourceProfile = currentResourceProfile;
+        this.newResourceProfile = newResourceProfile;
         this.metrics = metrics;
     }
 
     @JsonIgnore
     public boolean isScaledUp() {
-        return newParallelism > currentParallelism;
+        return !newResourceProfile.equals(currentResourceProfile);
     }
 }

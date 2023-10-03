@@ -17,15 +17,6 @@
 
 package org.apache.flink.kubernetes.operator.autoscaler;
 
-import org.apache.flink.annotation.VisibleForTesting;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.configuration.ConfigurationUtils;
-import org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions;
-import org.apache.flink.kubernetes.operator.autoscaler.metrics.CollectedMetrics;
-import org.apache.flink.kubernetes.operator.autoscaler.utils.AutoScalerSerDeModule;
-import org.apache.flink.runtime.jobgraph.JobVertexID;
-import org.apache.flink.util.Preconditions;
-
 import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,6 +26,15 @@ import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import lombok.SneakyThrows;
 import org.apache.commons.io.IOUtils;
+import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.ConfigurationUtils;
+import org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions;
+import org.apache.flink.kubernetes.operator.autoscaler.justin.JustinSummary;
+import org.apache.flink.kubernetes.operator.autoscaler.metrics.CollectedMetrics;
+import org.apache.flink.kubernetes.operator.autoscaler.utils.AutoScalerSerDeModule;
+import org.apache.flink.runtime.jobgraph.JobVertexID;
+import org.apache.flink.util.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.LoaderOptions;
@@ -44,12 +44,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -60,8 +55,10 @@ public class AutoScalerInfo {
 
     protected static final String COLLECTED_METRICS_KEY = "collectedMetrics";
     protected static final String SCALING_HISTORY_KEY = "scalingHistory";
+    protected static final String JUSTIN_HISTORY_KEY = "justinHistory";
 
     protected static final String PARALLELISM_OVERRIDES_KEY = "parallelismOverrides";
+    protected static final String JUSTIN_OVERRIDES_KEY = "justinOverrides";
 
     protected static final int MAX_CM_BYTES = 1000000;
 
@@ -72,6 +69,7 @@ public class AutoScalerInfo {
 
     private ConfigMap configMap;
     private Map<JobVertexID, SortedMap<Instant, ScalingSummary>> scalingHistory;
+    private Map<JobVertexID, SortedMap<Instant, JustinSummary>> justinHistory;
 
     public AutoScalerInfo(ConfigMap configMap) {
         this.configMap = configMap;
@@ -179,6 +177,43 @@ public class AutoScalerInfo {
         storeScalingHistory();
     }
 
+    @SneakyThrows
+    public Map<JobVertexID, SortedMap<Instant, JustinSummary>> getJustinHistory(
+            Instant now, Configuration conf) {
+        if (justinHistory != null) {
+            trimScalingHistory(now, conf);
+            return justinHistory;
+        }
+        var yaml = decompress(configMap.getData().get(SCALING_HISTORY_KEY));
+        if (yaml == null) {
+            justinHistory = new HashMap<>();
+            return justinHistory;
+        }
+        try {
+            justinHistory = YAML_MAPPER.readValue(yaml, new TypeReference<>() {
+            });
+        } catch (JacksonException e) {
+            LOG.error(
+                    "Could not deserialize scaling history, possibly the format changed. Discarding...");
+            configMap.getData().remove(SCALING_HISTORY_KEY);
+            justinHistory = new HashMap<>();
+        }
+        return justinHistory;
+    }
+
+    @SneakyThrows
+    public void addToJustinHistory(
+            Instant now, Map<JobVertexID, JustinSummary> summaries, Configuration conf) {
+        // Make sure to init history
+        getJustinHistory(now, conf);
+
+        summaries.forEach(
+                (id, summary) ->
+                        justinHistory.computeIfAbsent(id, j -> new TreeMap<>()).put(now, summary));
+
+        storeScalingHistory();
+    }
+
     public void setCurrentOverrides(Map<String, String> overrides) {
         configMap
                 .getData()
@@ -199,10 +234,38 @@ public class AutoScalerInfo {
         configMap.getData().remove(PARALLELISM_OVERRIDES_KEY);
     }
 
+    public Map<String, String> getCurrentJustinOverrides() {
+        var overridesStr = configMap.getData().get(JUSTIN_OVERRIDES_KEY);
+        if (overridesStr == null) {
+            return Map.of();
+        }
+        return ConfigurationUtils.convertValue(overridesStr, Map.class);
+    }
+
+    public void setCurrentJustinOverrides(Map<String, String> overrides) {
+        configMap
+                .getData()
+                .put(
+                        JUSTIN_OVERRIDES_KEY,
+                        ConfigurationUtils.convertValue(overrides, String.class));
+    }
+
+    public void removeCurrentJustinOverrides() {
+        configMap.getData().remove(JUSTIN_OVERRIDES_KEY);
+    }
+
+
     private void storeScalingHistory() throws Exception {
         configMap
                 .getData()
                 .put(SCALING_HISTORY_KEY, compress(YAML_MAPPER.writeValueAsString(scalingHistory)));
+    }
+
+
+    private void storeJustinHistory() throws Exception {
+        configMap
+                .getData()
+                .put(SCALING_HISTORY_KEY, compress(YAML_MAPPER.writeValueAsString(justinHistory)));
     }
 
     public void replaceInKubernetes(KubernetesClient client) throws Exception {

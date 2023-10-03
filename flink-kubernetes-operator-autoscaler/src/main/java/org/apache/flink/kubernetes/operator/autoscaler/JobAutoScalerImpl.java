@@ -17,6 +17,8 @@
 
 package org.apache.flink.kubernetes.operator.autoscaler;
 
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.javaoperatorsdk.operator.processing.event.ResourceID;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.kubernetes.operator.api.AbstractFlinkResource;
@@ -27,9 +29,6 @@ import org.apache.flink.kubernetes.operator.controller.FlinkResourceContext;
 import org.apache.flink.kubernetes.operator.reconciler.deployment.JobAutoScaler;
 import org.apache.flink.kubernetes.operator.utils.EventRecorder;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
-
-import io.fabric8.kubernetes.client.KubernetesClient;
-import io.javaoperatorsdk.operator.processing.event.ResourceID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -98,6 +97,27 @@ public class JobAutoScalerImpl implements JobAutoScaler {
                     info.replaceInKubernetes(kubernetesClient);
                 } else {
                     return info.getCurrentOverrides();
+                }
+            }
+        } catch (Exception e) {
+            LOG.error("Error while getting parallelism overrides", e);
+        }
+        return Map.of();
+    }
+
+    @Override
+    public Map<String, String> getJustinOverrides(FlinkResourceContext<?> ctx) {
+        var conf = ctx.getObserveConfig();
+        try {
+            var infoOpt = infoManager.getInfo(ctx.getResource());
+            if (infoOpt.isPresent()) {
+                var info = infoOpt.get();
+                // If autoscaler was disabled need to delete the overrides
+                if (!conf.getBoolean(AUTOSCALER_ENABLED) && !info.getCurrentJustinOverrides().isEmpty()) {
+                    info.removeCurrentJustinOverrides();
+                    info.replaceInKubernetes(kubernetesClient);
+                } else {
+                    return info.getCurrentJustinOverrides();
                 }
             }
         } catch (Exception e) {

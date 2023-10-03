@@ -17,10 +17,9 @@
 
 package org.apache.flink.kubernetes.operator.reconciler.deployment;
 
+import io.fabric8.kubernetes.client.KubernetesClient;
 import org.apache.flink.kubernetes.operator.controller.FlinkResourceContext;
 import org.apache.flink.kubernetes.operator.utils.EventRecorder;
-
-import io.fabric8.kubernetes.client.KubernetesClient;
 
 import java.util.Map;
 
@@ -38,10 +37,16 @@ public class NoopJobAutoscalerFactory implements JobAutoScalerFactory, JobAutoSc
     }
 
     @Override
-    public void cleanup(FlinkResourceContext<?> ctx) {}
+    public void cleanup(FlinkResourceContext<?> ctx) {
+    }
 
     @Override
     public Map<String, String> getParallelismOverrides(FlinkResourceContext<?> ctx) {
+        return Map.of();
+    }
+
+    @Override
+    public Map<String, String> getJustinOverrides(FlinkResourceContext<?> ctx) {
         return Map.of();
     }
 }

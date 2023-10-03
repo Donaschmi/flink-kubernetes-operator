@@ -17,6 +17,9 @@
 
 package org.apache.flink.kubernetes.operator.reconciler.deployment;
 
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.javaoperatorsdk.operator.api.reconciler.DeleteControl;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ConfigurationUtils;
@@ -25,16 +28,8 @@ import org.apache.flink.kubernetes.configuration.KubernetesConfigOptions;
 import org.apache.flink.kubernetes.operator.api.AbstractFlinkResource;
 import org.apache.flink.kubernetes.operator.api.FlinkDeployment;
 import org.apache.flink.kubernetes.operator.api.diff.DiffType;
-import org.apache.flink.kubernetes.operator.api.spec.AbstractFlinkSpec;
-import org.apache.flink.kubernetes.operator.api.spec.FlinkDeploymentSpec;
-import org.apache.flink.kubernetes.operator.api.spec.JobSpec;
-import org.apache.flink.kubernetes.operator.api.spec.JobState;
-import org.apache.flink.kubernetes.operator.api.spec.UpgradeMode;
-import org.apache.flink.kubernetes.operator.api.status.CommonStatus;
-import org.apache.flink.kubernetes.operator.api.status.JobManagerDeploymentStatus;
-import org.apache.flink.kubernetes.operator.api.status.ReconciliationState;
-import org.apache.flink.kubernetes.operator.api.status.Savepoint;
-import org.apache.flink.kubernetes.operator.api.status.SnapshotTriggerType;
+import org.apache.flink.kubernetes.operator.api.spec.*;
+import org.apache.flink.kubernetes.operator.api.status.*;
 import org.apache.flink.kubernetes.operator.config.KubernetesOperatorConfigOptions;
 import org.apache.flink.kubernetes.operator.controller.FlinkResourceContext;
 import org.apache.flink.kubernetes.operator.reconciler.Reconciler;
@@ -46,10 +41,6 @@ import org.apache.flink.kubernetes.operator.utils.EventRecorder;
 import org.apache.flink.kubernetes.operator.utils.FlinkUtils;
 import org.apache.flink.kubernetes.operator.utils.StatusRecorder;
 import org.apache.flink.runtime.jobmanager.HighAvailabilityMode;
-
-import io.fabric8.kubernetes.client.KubernetesClient;
-import io.javaoperatorsdk.operator.api.reconciler.DeleteControl;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,14 +52,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.apache.flink.kubernetes.operator.config.KubernetesOperatorConfigOptions.JUSTIN_OVERRIDES;
+
 /**
  * Base class for all Flink resource reconcilers. It contains the general flow of reconciling Flink
  * related resources including initial deployments, upgrades, rollbacks etc.
  */
 public abstract class AbstractFlinkResourceReconciler<
-                CR extends AbstractFlinkResource<SPEC, STATUS>,
-                SPEC extends AbstractFlinkSpec,
-                STATUS extends CommonStatus<SPEC>>
+        CR extends AbstractFlinkResource<SPEC, STATUS>,
+        SPEC extends AbstractFlinkSpec,
+        STATUS extends CommonStatus<SPEC>>
         implements Reconciler<CR> {
 
     private static final Logger LOG =
@@ -139,10 +132,12 @@ public abstract class AbstractFlinkResourceReconciler<
         SPEC currentDeploySpec = cr.getSpec();
         applyAutoscalerParallelismOverrides(
                 resourceScaler.getParallelismOverrides(ctx), currentDeploySpec);
+        applyAutoscalerJustinOverrides(
+                resourceScaler.getJustinOverrides(ctx), currentDeploySpec);
 
         var specDiff =
                 new ReflectiveDiffBuilder<>(
-                                ctx.getDeploymentMode(), lastReconciledSpec, currentDeploySpec)
+                        ctx.getDeploymentMode(), lastReconciledSpec, currentDeploySpec)
                         .build();
         var diffType = specDiff.getType();
 
@@ -357,10 +352,41 @@ public abstract class AbstractFlinkResourceReconciler<
     }
 
     /**
+     * If there are any parallelism overrides by the {@link JobAutoScaler} apply them to the spec.
+     *
+     * @param autoscalerOverrides Parallelism overrides initiated by the autoscaler
+     * @param spec                Current user spec
+     */
+    private void applyAutoscalerJustinOverrides(
+            Map<String, String> autoscalerOverrides, SPEC spec) {
+
+        if (autoscalerOverrides.isEmpty()) {
+            return;
+        }
+
+        LOG.info("Applying autoscaler justin overrides: {}", autoscalerOverrides);
+
+        var configMap = spec.getFlinkConfiguration();
+        var userOverridesStr =
+                configMap.getOrDefault(JUSTIN_OVERRIDES.key(), "");
+        var userOverrides =
+                new HashMap<>(
+                        ConfigurationUtils.<Map<String, String>>convertValue(
+                                userOverridesStr, Map.class));
+
+        autoscalerOverrides.forEach(userOverrides::put);
+        LOG.info("userOverrides: {}", userOverrides);
+
+        configMap.put(
+                JUSTIN_OVERRIDES.key(),
+                ConfigurationUtils.convertValue(userOverrides, String.class));
+    }
+
+    /**
      * Scale the cluster in-place if possible, either through reactive scaling or declarative
      * resources.
      *
-     * @param ctx Resource context.
+     * @param ctx          Resource context.
      * @param deployConfig Configuration to be deployed.
      * @return True if the scaling is successful
      * @throws Exception
@@ -369,6 +395,7 @@ public abstract class AbstractFlinkResourceReconciler<
             throws Exception {
 
         var scalingResult = ctx.getFlinkService().scale(ctx, deployConfig);
+        LOG.info(String.valueOf(scalingResult));
         if (scalingResult == FlinkService.ScalingResult.CANNOT_SCALE) {
             return false;
         }

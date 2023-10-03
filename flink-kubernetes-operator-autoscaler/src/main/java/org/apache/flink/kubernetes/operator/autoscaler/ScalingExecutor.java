@@ -24,9 +24,9 @@ import org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions;
 import org.apache.flink.kubernetes.operator.autoscaler.metrics.EvaluatedScalingMetric;
 import org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric;
 import org.apache.flink.kubernetes.operator.utils.EventRecorder;
+import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.util.Preconditions;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,12 +38,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.SortedMap;
 
+import static org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions.JUSTIN_ENABLED;
 import static org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions.SCALING_ENABLED;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.EXPECTED_PROCESSING_RATE;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.SCALE_DOWN_RATE_THRESHOLD;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.SCALE_UP_RATE_THRESHOLD;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.TARGET_DATA_RATE;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.TRUE_PROCESSING_RATE;
+import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.*;
 
 /** Class responsible for executing scaling decisions. */
 public class ScalingExecutor {
@@ -67,63 +64,6 @@ public class ScalingExecutor {
         this.eventRecorder = eventRecorder;
     }
 
-    public boolean scaleResource(
-            AbstractFlinkResource<?, ?> resource,
-            AutoScalerInfo scalingInformation,
-            Configuration conf,
-            Map<JobVertexID, Map<ScalingMetric, EvaluatedScalingMetric>> evaluatedMetrics) {
-
-        var now = Instant.now();
-        var scalingHistory = scalingInformation.getScalingHistory(now, conf);
-        var scalingSummaries =
-                computeScalingSummary(resource, conf, evaluatedMetrics, scalingHistory);
-
-        if (scalingSummaries.isEmpty()) {
-            LOG.info("All job vertices are currently running at their target parallelism.");
-            return false;
-        }
-
-        if (allVerticesWithinUtilizationTarget(evaluatedMetrics, scalingSummaries)) {
-            return false;
-        }
-
-        updateRecommendedParallelism(evaluatedMetrics, scalingSummaries);
-
-        var scalingEnabled = conf.get(SCALING_ENABLED);
-
-        var scalingReport = scalingReport(scalingSummaries, scalingEnabled);
-        eventRecorder.triggerEvent(
-                resource,
-                EventRecorder.Type.Normal,
-                EventRecorder.Reason.ScalingReport,
-                EventRecorder.Component.Operator,
-                scalingReport,
-                "ScalingExecutor");
-
-        if (!scalingEnabled) {
-            return false;
-        }
-
-        scalingInformation.addToScalingHistory(clock.instant(), scalingSummaries, conf);
-        scalingInformation.setCurrentOverrides(
-                getVertexParallelismOverrides(evaluatedMetrics, scalingSummaries));
-
-        return true;
-    }
-
-    private void updateRecommendedParallelism(
-            Map<JobVertexID, Map<ScalingMetric, EvaluatedScalingMetric>> evaluatedMetrics,
-            Map<JobVertexID, ScalingSummary> scalingSummaries) {
-        scalingSummaries.forEach(
-                (jobVertexID, scalingSummary) -> {
-                    evaluatedMetrics
-                            .get(jobVertexID)
-                            .put(
-                                    ScalingMetric.RECOMMENDED_PARALLELISM,
-                                    EvaluatedScalingMetric.of(scalingSummary.getNewParallelism()));
-                });
-    }
-
     private static String scalingReport(
             Map<JobVertexID, ScalingSummary> scalingSummaries, boolean scalingEnabled) {
         StringBuilder sb =
@@ -140,9 +80,55 @@ public class ScalingExecutor {
                                         s.getCurrentParallelism(),
                                         s.getNewParallelism(),
                                         s.getMetrics().get(TRUE_PROCESSING_RATE).getAverage(),
-                                        s.getMetrics().get(EXPECTED_PROCESSING_RATE).getCurrent(),
+                                        s.getMetrics().get(EXPECTED_PROCESSING_RATE) != null ? s.getMetrics().get(EXPECTED_PROCESSING_RATE).getCurrent() : 0, // Justin
                                         s.getMetrics().get(TARGET_DATA_RATE).getAverage())));
         return sb.toString();
+    }
+
+    private void updateRecommendedParallelism(
+            Map<JobVertexID, Map<ScalingMetric, EvaluatedScalingMetric>> evaluatedMetrics,
+            Map<JobVertexID, ScalingSummary> scalingSummaries) {
+        scalingSummaries.forEach(
+                (jobVertexID, scalingSummary) -> {
+                    evaluatedMetrics
+                            .get(jobVertexID)
+                            .put(
+                                    ScalingMetric.RECOMMENDED_PARALLELISM,
+                                    EvaluatedScalingMetric.of(scalingSummary.getNewParallelism()));
+                });
+    }
+
+    @VisibleForTesting
+    public static Map<String, String> getVertexResourceProfileOverrides(
+            Map<JobVertexID, Map<ScalingMetric, EvaluatedScalingMetric>> evaluatedMetrics,
+            Map<JobVertexID, ScalingSummary> summaries) {
+        var defaultResourceProfile = ResourceProfile.newBuilder()
+                .setCpuCores(1.0)
+                .setTaskHeapMemoryMB(363)
+                .setTaskOffHeapMemoryMB(0)
+                .setManagedMemoryMB(0)
+                .setNetworkMemoryMB(84)
+                .build();
+        var statefulResourceProfile = getStatefulResourceProfile(evaluatedMetrics, summaries);
+        LOG.info("Stateful resource profile -> " + statefulResourceProfile);
+        summaries.forEach(
+                (jobVertexID, scalingSummary) -> {
+                    LOG.debug("Summary: {} -> {} ", jobVertexID, scalingSummary);
+                    if (jobVertexID.toHexString().compareTo("ebca99d2ba186d39f4b704d5595984ad") == 0) {
+                        scalingSummary.setNewResourceProfile(statefulResourceProfile);
+                    } else {
+                        scalingSummary.setNewResourceProfile(defaultResourceProfile);
+                    }
+                });
+        var overrides = new HashMap<String, String>();
+        evaluatedMetrics.forEach(
+                (id, metrics) -> {
+                    LOG.debug("Evaluated: {} -> {} ", id, metrics);
+                    overrides.put(
+                            id.toString(),
+                            String.valueOf(summaries.get(id).getNewResourceProfile()));
+                });
+        return overrides;
     }
 
     protected static boolean allVerticesWithinUtilizationTarget(
@@ -179,41 +165,31 @@ public class ScalingExecutor {
         return true;
     }
 
-    private Map<JobVertexID, ScalingSummary> computeScalingSummary(
-            AbstractFlinkResource<?, ?> resource,
-            Configuration conf,
+    private static ResourceProfile getStatefulResourceProfile(
             Map<JobVertexID, Map<ScalingMetric, EvaluatedScalingMetric>> evaluatedMetrics,
-            Map<JobVertexID, SortedMap<Instant, ScalingSummary>> scalingHistory) {
+            Map<JobVertexID, ScalingSummary> summaries) {
+        var totalTasks = 0;
+        var statefulTasks = 0;
+        for (Map.Entry<JobVertexID, ScalingSummary> summary :
+                summaries.entrySet()) {
+            if (summary.getKey().toHexString().compareTo("ebca99d2ba186d39f4b704d5595984ad") == 0) {
+                statefulTasks = summary.getValue().getNewParallelism();
+            }
+            totalTasks += summary.getValue().getNewParallelism();
+        }
+        var tasksPerTM = 4;
+        var rp = ResourceProfile.newBuilder()
+                .setCpuCores(1.0)
+                .setTaskHeapMemoryMB(364)
+                .setTaskOffHeapMemoryMB(0)
+                .setNetworkMemoryMB(85);
+        var TMs = ((totalTasks - 1) / tasksPerTM) + 1;
+        LOG.info("TMs -> " + TMs);
+        while (statefulTasks % TMs != 0) {
+            statefulTasks += 1;
+        }
 
-        var out = new HashMap<JobVertexID, ScalingSummary>();
-        var excludeVertexIdList = conf.get(AutoScalerOptions.VERTEX_EXCLUDE_IDS);
-        evaluatedMetrics.forEach(
-                (v, metrics) -> {
-                    if (excludeVertexIdList.contains(v.toHexString())) {
-                        LOG.debug(
-                                "Vertex {} is part of `vertex.exclude.ids` config, Ignoring it for scaling",
-                                v);
-                    } else {
-                        var currentParallelism =
-                                (int) metrics.get(ScalingMetric.PARALLELISM).getCurrent();
-                        var newParallelism =
-                                jobVertexScaler.computeScaleTargetParallelism(
-                                        resource,
-                                        conf,
-                                        v,
-                                        metrics,
-                                        scalingHistory.getOrDefault(
-                                                v, Collections.emptySortedMap()));
-                        if (currentParallelism != newParallelism) {
-                            out.put(
-                                    v,
-                                    new ScalingSummary(
-                                            currentParallelism, newParallelism, metrics));
-                        }
-                    }
-                });
-
-        return out;
+        return rp.setManagedMemoryMB((TMs * 343 * 4 / statefulTasks) - 1).build();
     }
 
     private static Map<String, String> getVertexParallelismOverrides(
@@ -234,6 +210,114 @@ public class ScalingExecutor {
                     }
                 });
         return overrides;
+    }
+
+    @VisibleForTesting
+    public static Map<String, String> getDefaultVertexResourceProfileOverrides(
+            Map<JobVertexID, Map<ScalingMetric, EvaluatedScalingMetric>> evaluatedMetrics,
+            Map<JobVertexID, ScalingSummary> summaries) {
+        LOG.debug("DefaultOverride");
+        var overrides = new HashMap<String, String>();
+        evaluatedMetrics.forEach(
+                (id, metrics) -> {
+                    overrides.put(
+                            id.toString(),
+                            String.valueOf(ResourceProfile.UNKNOWN));
+                });
+        return overrides;
+    }
+
+    public boolean scaleResource(
+            AbstractFlinkResource<?, ?> resource,
+            AutoScalerInfo scalingInformation,
+            Configuration conf,
+            Map<JobVertexID, Map<ScalingMetric, EvaluatedScalingMetric>> evaluatedMetrics) {
+
+        var now = Instant.now();
+        var scalingHistory = scalingInformation.getScalingHistory(now, conf);
+        var scalingSummaries =
+                computeScalingSummary(resource, conf, evaluatedMetrics, scalingHistory);
+        //var justinSummaries =
+        //        computeJustinSummary(resource, conf, evaluatedMetrics, null);
+
+        if (scalingSummaries.isEmpty()) {
+            LOG.info("All job vertices are currently running at their target parallelism.");
+            return false;
+        }
+
+        if (allVerticesWithinUtilizationTarget(evaluatedMetrics, scalingSummaries)) {
+            return false;
+        }
+
+        updateRecommendedParallelism(evaluatedMetrics, scalingSummaries);
+        //updateRecommendedJustin(evaluatedMetrics, justinSummaries);
+
+        var scalingEnabled = conf.get(SCALING_ENABLED);
+
+        var scalingReport = scalingReport(scalingSummaries, scalingEnabled);
+        eventRecorder.triggerEvent(
+                resource,
+                EventRecorder.Type.Normal,
+                EventRecorder.Reason.ScalingReport,
+                EventRecorder.Component.Operator,
+                scalingReport,
+                "ScalingExecutor");
+
+        if (!scalingEnabled) {
+            return false;
+        }
+
+        scalingInformation.addToScalingHistory(clock.instant(), scalingSummaries, conf);
+        scalingInformation.setCurrentOverrides(
+                getVertexParallelismOverrides(evaluatedMetrics, scalingSummaries));
+        var justinOverrides = conf.get(JUSTIN_ENABLED)
+                ? getVertexResourceProfileOverrides(evaluatedMetrics, scalingSummaries)
+                : getDefaultVertexResourceProfileOverrides(evaluatedMetrics, scalingSummaries);
+        LOG.info("Override:" + justinOverrides);
+        scalingInformation.setCurrentJustinOverrides(
+                justinOverrides);
+        return true;
+    }
+
+    private Map<JobVertexID, ScalingSummary> computeScalingSummary(
+            AbstractFlinkResource<?, ?> resource,
+            Configuration conf,
+            Map<JobVertexID, Map<ScalingMetric, EvaluatedScalingMetric>> evaluatedMetrics,
+            Map<JobVertexID, SortedMap<Instant, ScalingSummary>> scalingHistory) {
+
+        var out = new HashMap<JobVertexID, ScalingSummary>();
+        var excludeVertexIdList = conf.get(AutoScalerOptions.VERTEX_EXCLUDE_IDS);
+        evaluatedMetrics.forEach(
+                (v, metrics) -> {
+                    if (excludeVertexIdList.contains(v.toHexString())) {
+                        LOG.debug(
+                                "Vertex {} is part of `vertex.exclude.ids` config, Ignoring it for scaling",
+                                v);
+                        out.put(v,
+                                new ScalingSummary(
+                                        (int) metrics.get(ScalingMetric.PARALLELISM).getCurrent(),
+                                        (int) metrics.get(ScalingMetric.PARALLELISM).getCurrent(),
+                                        metrics));
+                    } else {
+                        var currentParallelism =
+                                (int) metrics.get(ScalingMetric.PARALLELISM).getCurrent();
+                        var newParallelism =
+                                jobVertexScaler.computeScaleTargetParallelism(
+                                        resource,
+                                        conf,
+                                        v,
+                                        metrics,
+                                        scalingHistory.getOrDefault(
+                                                v, Collections.emptySortedMap()));
+                        // Donatien Schmitz: Remove the filter to give a scaling summary to each and every vertex
+                            out.put(
+                                    v,
+                                    new ScalingSummary(
+                                            currentParallelism, newParallelism, metrics));
+                    }
+                });
+
+        return out;
     }
 
     @VisibleForTesting

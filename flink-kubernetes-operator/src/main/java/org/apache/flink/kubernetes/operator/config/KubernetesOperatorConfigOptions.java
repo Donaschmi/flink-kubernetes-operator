@@ -18,22 +18,26 @@
 
 package org.apache.flink.kubernetes.operator.config;
 
+import io.fabric8.kubernetes.api.model.DeletionPropagation;
+import io.javaoperatorsdk.operator.api.config.ConfigurationService;
+import io.javaoperatorsdk.operator.api.config.LeaderElectionConfiguration;
+import io.javaoperatorsdk.operator.api.reconciler.Constants;
 import org.apache.flink.annotation.docs.Documentation;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.core.execution.SavepointFormatType;
 import org.apache.flink.kubernetes.operator.api.status.CheckpointType;
 
-import io.fabric8.kubernetes.api.model.DeletionPropagation;
-import io.javaoperatorsdk.operator.api.config.ConfigurationService;
-import io.javaoperatorsdk.operator.api.config.LeaderElectionConfiguration;
-import io.javaoperatorsdk.operator.api.reconciler.Constants;
-
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-/** This class holds configuration constants used by flink operator. */
+import static org.apache.flink.configuration.ConfigOptions.key;
+
+/**
+ * This class holds configuration constants used by flink operator.
+ */
 public class KubernetesOperatorConfigOptions {
 
     public static final String K8S_OP_CONF_PREFIX = "kubernetes.operator.";
@@ -566,4 +570,22 @@ public class KubernetesOperatorConfigOptions {
                     .defaultValue(false)
                     .withDescription(
                             "Indicate whether a savepoint must be taken when deleting a FlinkDeployment or FlinkSessionJob.");
+
+    @Documentation.Section(SECTION_DYNAMIC)
+    public static final ConfigOption<Boolean> JUSTIN_ENABLED =
+            operatorConfig("justin.enabled")
+                    .booleanType()
+                    .defaultValue(false)
+                    .withDescription(
+                            "Indicate whether a savepoint must be taken when deleting a FlinkDeployment or FlinkSessionJob.");
+
+
+    public static final ConfigOption<Map<String, String>> JUSTIN_OVERRIDES =
+            key("pipeline.jobvertex-justin-overrides")
+                    .mapType()
+                    .defaultValue(Collections.emptyMap())
+                    .withDescription(
+                            "A parallelism override map (jobVertexId -> parallelism) which will be used to update"
+                                    + " the parallelism of the corresponding job vertices of submitted JobGraphs.");
+
 }

@@ -21,13 +21,7 @@ import org.apache.flink.kubernetes.kubeclient.FlinkPod;
 import org.apache.flink.kubernetes.kubeclient.decorators.AbstractKubernetesStepDecorator;
 import org.apache.flink.kubernetes.kubeclient.resources.KubernetesToleration;
 import org.apache.flink.kubernetes.operator.kubeclient.parameters.StandaloneKubernetesTaskManagerParameters;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.Container;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.ContainerBuilder;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.ContainerPortBuilder;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.EnvVar;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.EnvVarBuilder;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.PodBuilder;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.ResourceRequirements;
+import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.*;
 import org.apache.flink.kubernetes.utils.Constants;
 import org.apache.flink.kubernetes.utils.KubernetesUtils;
 
@@ -118,6 +112,10 @@ public class InitStandaloneTaskManagerDecorator extends AbstractKubernetesStepDe
                         new ContainerPortBuilder()
                                 .withName(Constants.TASK_MANAGER_RPC_PORT_NAME)
                                 .withContainerPort(kubernetesTaskManagerParameters.getRPCPort())
+                                .build(),
+                        new ContainerPortBuilder()
+                                .withName("prom")
+                                .withContainerPort(9249)
                                 .build())
                 .addAllToEnv(getCustomizedEnvs());
         getFlinkLogDirEnv().ifPresent(mainContainerBuilder::addToEnv);

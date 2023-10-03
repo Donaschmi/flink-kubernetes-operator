@@ -53,16 +53,59 @@ public enum ScalingMetric {
     /** Recommended job vertex parallelism. */
     RECOMMENDED_PARALLELISM(false),
 
-    /** Job vertex max parallelism. */
+    /**
+     * Job vertex max parallelism.
+     */
     MAX_PARALLELISM(false),
-    /** Upper boundary of the target data rate range. */
+    /**
+     * Upper boundary of the target data rate range.
+     */
     SCALE_UP_RATE_THRESHOLD(false),
 
-    /** Lower boundary of the target data rate range. */
+    /**
+     * Lower boundary of the target data rate range.
+     */
     SCALE_DOWN_RATE_THRESHOLD(false),
 
-    /** Expected true processing rate after scale up. */
-    EXPECTED_PROCESSING_RATE(false);
+    /**
+     * Expected true processing rate after scale up.
+     */
+    EXPECTED_PROCESSING_RATE(false),
+
+    /**
+     * Recommended job vertex parallelism.
+     */
+    RECOMMENDED_RESOURCE_PROFILE(false),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    ROCKS_DB_BLOCK_CACHE_HIT_RATE(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    ROCKS_DB_BLOCK_CACHE_HIT(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    ROCKS_DB_BLOCK_CACHE_MISS(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    ROCKS_DB_BLOCK_CACHE_USAGE(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    ROCKS_DB_ESTIMATE_NUM_KEYS(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    ROCKS_DB_LIVE_SST_FILES_SIZE(true);
 
     private final boolean calculateAverage;
 

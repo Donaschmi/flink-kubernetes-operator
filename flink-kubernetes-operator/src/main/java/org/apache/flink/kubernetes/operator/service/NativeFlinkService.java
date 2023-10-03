@@ -17,6 +17,10 @@
 
 package org.apache.flink.kubernetes.operator.service;
 
+import io.fabric8.kubernetes.api.model.DeletionPropagation;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.PodList;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.JobStatus;
@@ -43,21 +47,22 @@ import org.apache.flink.kubernetes.operator.config.KubernetesOperatorConfigOptio
 import org.apache.flink.kubernetes.operator.controller.FlinkResourceContext;
 import org.apache.flink.kubernetes.operator.reconciler.ReconciliationUtils;
 import org.apache.flink.kubernetes.operator.utils.EventRecorder;
+import org.apache.flink.kubernetes.operator.utils.FlinkUtils;
 import org.apache.flink.kubernetes.utils.KubernetesUtils;
 import org.apache.flink.runtime.jobgraph.JobResourceRequirements;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobgraph.JobVertexResourceRequirements;
+import org.apache.flink.runtime.jobgraph.justin.JustinResourceRequirements;
+import org.apache.flink.runtime.jobgraph.justin.JustinVertexResourceRequirements;
 import org.apache.flink.runtime.rest.messages.EmptyRequestBody;
 import org.apache.flink.runtime.rest.messages.JobMessageParameters;
 import org.apache.flink.runtime.rest.messages.job.JobDetailsInfo;
 import org.apache.flink.runtime.rest.messages.job.JobResourceRequirementsBody;
 import org.apache.flink.runtime.rest.messages.job.JobResourceRequirementsHeaders;
 import org.apache.flink.runtime.rest.messages.job.JobResourcesRequirementsUpdateHeaders;
-
-import io.fabric8.kubernetes.api.model.DeletionPropagation;
-import io.fabric8.kubernetes.api.model.ObjectMeta;
-import io.fabric8.kubernetes.api.model.PodList;
-import io.fabric8.kubernetes.client.KubernetesClient;
+import org.apache.flink.runtime.rest.messages.job.justin.JustinResourceRequirementsBody;
+import org.apache.flink.runtime.rest.messages.job.justin.JustinResourceRequirementsHeaders;
+import org.apache.flink.runtime.rest.messages.job.justin.JustinResourcesRequirementsUpdateHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,6 +73,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.apache.flink.kubernetes.operator.config.FlinkConfigBuilder.FLINK_VERSION;
+import static org.apache.flink.kubernetes.operator.config.KubernetesOperatorConfigOptions.JUSTIN_OVERRIDES;
 
 /**
  * Implementation of {@link FlinkService} submitting and interacting with Native Kubernetes Flink
@@ -179,6 +185,7 @@ public class NativeFlinkService extends AbstractFlinkService {
     @Override
     public ScalingResult scale(FlinkResourceContext<?> ctx, Configuration deployConfig)
             throws Exception {
+
         var resource = ctx.getResource();
         var observeConfig = ctx.getObserveConfig();
 
@@ -194,6 +201,7 @@ public class NativeFlinkService extends AbstractFlinkService {
         }
 
         try (var client = getClusterClient(observeConfig)) {
+
             var requirements = new HashMap<>(getVertexResources(client, resource));
             var result = ScalingResult.ALREADY_SCALED;
 
@@ -224,7 +232,75 @@ public class NativeFlinkService extends AbstractFlinkService {
             if (result == ScalingResult.ALREADY_SCALED) {
                 LOG.info("Vertex resources requirements already match target, nothing to do...");
             } else {
+                LOG.info("In-place rescale.");
                 updateVertexResources(client, resource, requirements);
+                eventRecorder.triggerEvent(
+                        resource,
+                        EventRecorder.Type.Normal,
+                        EventRecorder.Reason.Scaling,
+                        EventRecorder.Component.Job,
+                        "In-place scaling triggered");
+            }
+            return result;
+        } catch (Throwable t) {
+            LOG.error("Error while rescaling, falling back to regular upgrade", t);
+            return ScalingResult.CANNOT_SCALE;
+        }
+    }
+
+    private ScalingResult justin(FlinkResourceContext<?> ctx, Configuration deployConfig) {
+
+        var resource = ctx.getResource();
+        var observeConfig = ctx.getObserveConfig();
+
+        if (!supportsInPlaceScaling(resource, observeConfig)) {
+            return ScalingResult.CANNOT_SCALE;
+        }
+
+        var newOverrides = deployConfig.get(PipelineOptions.PARALLELISM_OVERRIDES);
+        var previousOverrides = observeConfig.get(PipelineOptions.PARALLELISM_OVERRIDES);
+        var newJustinOverrides = deployConfig.get(JUSTIN_OVERRIDES);
+        var previousJustinOverrides = observeConfig.get(JUSTIN_OVERRIDES);
+        if (newOverrides.isEmpty() && previousOverrides.isEmpty() && newJustinOverrides.isEmpty() && previousJustinOverrides.isEmpty()) {
+            LOG.info("No overrides defined before or after. Cannot scale in-place.");
+            return ScalingResult.CANNOT_SCALE;
+        }
+
+        try (var client = getClusterClient(observeConfig)) {
+
+            var requirements = new HashMap<>(getJustinVertexResources(client, resource));
+            var result = ScalingResult.ALREADY_SCALED;
+
+            for (Map.Entry<JobVertexID, JustinVertexResourceRequirements> entry :
+                    requirements.entrySet()) {
+                var jobVertexId = entry.getKey().toString();
+                var parallelism = entry.getValue().getParallelism();
+                var overrideStr = newOverrides.get(jobVertexId);
+                var overrideJustin = newJustinOverrides.get(jobVertexId);
+
+                if (overrideStr != null && overrideJustin != null) {
+                    // We have an override for the vertex
+                    int p = Integer.parseInt(overrideStr);
+                    var newParallelism = new JustinVertexResourceRequirements.Parallelism(p, p);
+                    var resourceProfile = FlinkUtils.parseResourceProfile(overrideJustin);
+                    // If the requirements changed we mark this as scaling triggered
+                    if (!parallelism.equals(newParallelism)) {
+                        entry.setValue(new JustinVertexResourceRequirements(newParallelism, resourceProfile));
+                        result = ScalingResult.SCALING_TRIGGERED;
+                    }
+                } else if (previousOverrides.containsKey(jobVertexId)) {
+                    LOG.info(
+                            "Parallelism override for {} has been removed, falling back to regular upgrade.",
+                            jobVertexId);
+                    return ScalingResult.CANNOT_SCALE;
+                } else {
+                    // No overrides for this vertex
+                }
+            }
+            if (result == ScalingResult.ALREADY_SCALED) {
+                LOG.info("Vertex resources requirements already match target, nothing to do...");
+            } else {
+                updateJustinVertexResources(client, resource, requirements);
                 eventRecorder.triggerEvent(
                         resource,
                         EventRecorder.Type.Normal,
@@ -243,7 +319,7 @@ public class NativeFlinkService extends AbstractFlinkService {
             AbstractFlinkResource<?, ?> resource, Configuration observeConfig) {
         if (resource.getSpec().getJob() == null
                 || !observeConfig.get(
-                        KubernetesOperatorConfigOptions.JOB_UPGRADE_INPLACE_SCALING_ENABLED)) {
+                KubernetesOperatorConfigOptions.JOB_UPGRADE_INPLACE_SCALING_ENABLED)) {
             return false;
         }
 
@@ -285,6 +361,23 @@ public class NativeFlinkService extends AbstractFlinkService {
     }
 
     @VisibleForTesting
+    protected void updateJustinVertexResources(
+            RestClusterClient<String> client,
+            AbstractFlinkResource<?, ?> resource,
+            Map<JobVertexID, JustinVertexResourceRequirements> newReqs)
+            throws Exception {
+        var jobParameters = new JobMessageParameters();
+        jobParameters.jobPathParameter.resolve(
+                JobID.fromHexString(resource.getStatus().getJobStatus().getJobId()));
+
+        var requestBody = new JustinResourceRequirementsBody(new JustinResourceRequirements(newReqs));
+
+        client.sendRequest(new JustinResourcesRequirementsUpdateHeaders(), jobParameters, requestBody)
+                .get(operatorConfig.getFlinkClientTimeout().toSeconds(), TimeUnit.SECONDS);
+    }
+
+
+    @VisibleForTesting
     protected Map<JobVertexID, JobVertexResourceRequirements> getVertexResources(
             RestClusterClient<String> client, AbstractFlinkResource<?, ?> resource)
             throws Exception {
@@ -295,6 +388,23 @@ public class NativeFlinkService extends AbstractFlinkService {
         var currentRequirements =
                 client.sendRequest(
                                 new JobResourceRequirementsHeaders(),
+                                jobParameters,
+                                EmptyRequestBody.getInstance())
+                        .get(operatorConfig.getFlinkClientTimeout().toSeconds(), TimeUnit.SECONDS);
+
+        return currentRequirements.asJobResourceRequirements().get().getJobVertexParallelisms();
+    }
+
+    protected Map<JobVertexID, JustinVertexResourceRequirements> getJustinVertexResources(
+            RestClusterClient<String> client, AbstractFlinkResource<?, ?> resource)
+            throws Exception {
+        var jobParameters = new JobMessageParameters();
+        jobParameters.jobPathParameter.resolve(
+                JobID.fromHexString(resource.getStatus().getJobStatus().getJobId()));
+
+        var currentRequirements =
+                client.sendRequest(
+                                new JustinResourceRequirementsHeaders(),
                                 jobParameters,
                                 EmptyRequestBody.getInstance())
                         .get(operatorConfig.getFlinkClientTimeout().toSeconds(), TimeUnit.SECONDS);

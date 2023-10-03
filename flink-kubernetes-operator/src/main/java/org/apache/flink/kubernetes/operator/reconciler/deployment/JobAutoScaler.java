@@ -24,12 +24,23 @@ import java.util.Map;
 /** Per-job Autoscaler instance. */
 public interface JobAutoScaler {
 
-    /** Called as part of the reconciliation loop. Returns true if this call led to scaling. */
+    /**
+     * Called as part of the reconciliation loop. Returns true if this call led to scaling.
+     */
     boolean scale(FlinkResourceContext<?> ctx);
 
-    /** Called when the custom resource is deleted. */
+    /**
+     * Called when the custom resource is deleted.
+     */
     void cleanup(FlinkResourceContext<?> ctx);
 
-    /** Get the current parallelism overrides for the job. */
+    /**
+     * Get the current parallelism overrides for the job.
+     */
     Map<String, String> getParallelismOverrides(FlinkResourceContext<?> ctx);
+
+    /**
+     * Get the current justin overrides for the job.
+     */
+    Map<String, String> getJustinOverrides(FlinkResourceContext<?> ctx);
 }

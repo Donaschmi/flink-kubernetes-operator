@@ -17,6 +17,15 @@
 
 package org.apache.flink.kubernetes.operator.utils;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.fabric8.kubernetes.api.model.*;
+import io.fabric8.kubernetes.api.model.apps.Deployment;
+import io.fabric8.kubernetes.api.model.apps.DeploymentCondition;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.javaoperatorsdk.operator.api.reconciler.Context;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.CoreOptions;
@@ -31,39 +40,15 @@ import org.apache.flink.kubernetes.operator.api.spec.FlinkVersion;
 import org.apache.flink.kubernetes.operator.reconciler.ReconciliationUtils;
 import org.apache.flink.kubernetes.utils.Constants;
 import org.apache.flink.kubernetes.utils.KubernetesUtils;
+import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.jobmanager.HighAvailabilityMode;
 import org.apache.flink.runtime.rest.messages.DashboardConfigurationHeaders;
 import org.apache.flink.runtime.util.ZooKeeperUtils;
 import org.apache.flink.util.Preconditions;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.fabric8.kubernetes.api.model.ConfigMap;
-import io.fabric8.kubernetes.api.model.ConfigMapList;
-import io.fabric8.kubernetes.api.model.Container;
-import io.fabric8.kubernetes.api.model.HTTPGetAction;
-import io.fabric8.kubernetes.api.model.IntOrString;
-import io.fabric8.kubernetes.api.model.ObjectMeta;
-import io.fabric8.kubernetes.api.model.Pod;
-import io.fabric8.kubernetes.api.model.PodSpec;
-import io.fabric8.kubernetes.api.model.Probe;
-import io.fabric8.kubernetes.api.model.apps.Deployment;
-import io.fabric8.kubernetes.api.model.apps.DeploymentCondition;
-import io.fabric8.kubernetes.client.KubernetesClient;
-import io.javaoperatorsdk.operator.api.reconciler.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 import static org.apache.flink.kubernetes.utils.Constants.LABEL_CONFIGMAP_TYPE_HIGH_AVAILABILITY;
 
@@ -448,5 +433,37 @@ public class FlinkUtils {
 
         // If unsure, return false to be on the safe side
         return false;
+    }
+
+
+    public static ResourceProfile parseResourceProfile(String s) {
+        String delim = "[{}]+";
+        String[] strings = s.split(delim);
+        if (strings.length <= 0 || !strings[0].equals(ResourceProfile.class.getSimpleName())) {
+            return ResourceProfile.UNKNOWN;
+        } else if (strings.length == 2) {
+            if (strings[1].contains("UNKNOWN")) {
+                return ResourceProfile.UNKNOWN;
+            }
+            String[] profiles = strings[1].split(", ");
+            ResourceProfile.Builder resourceProfile = ResourceProfile.newBuilder()
+                    .setCpuCores(Double.parseDouble(profiles[0].split("=")[1]))
+                    .setTaskHeapMemoryMB(parseMemoryFromResourceProfile(profiles[1]))
+                    .setTaskOffHeapMemoryMB(parseMemoryFromResourceProfile(profiles[2]))
+                    .setManagedMemoryMB(parseMemoryFromResourceProfile(profiles[3]))
+                    .setNetworkMemoryMB(parseMemoryFromResourceProfile(profiles[4]));
+            return resourceProfile.build();
+
+        } else {
+            return ResourceProfile.UNKNOWN;
+        }
+    }
+
+    private static int parseMemoryFromResourceProfile(String s) {
+        String parsed = s.substring(s.indexOf("=") + 1, s.indexOf(" "));
+        if (parsed.equals("0")) {
+            return 0;
+        }
+        return Integer.parseInt(parsed.split("\\.")[0]);
     }
 }

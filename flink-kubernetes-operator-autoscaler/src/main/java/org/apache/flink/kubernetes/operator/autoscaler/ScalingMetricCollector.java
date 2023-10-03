@@ -17,17 +17,15 @@
 
 package org.apache.flink.kubernetes.operator.autoscaler;
 
+import io.javaoperatorsdk.operator.processing.event.ResourceID;
+import lombok.SneakyThrows;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.client.program.rest.RestClusterClient;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.kubernetes.operator.api.AbstractFlinkResource;
 import org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions;
-import org.apache.flink.kubernetes.operator.autoscaler.metrics.CollectedMetricHistory;
-import org.apache.flink.kubernetes.operator.autoscaler.metrics.CollectedMetrics;
-import org.apache.flink.kubernetes.operator.autoscaler.metrics.FlinkMetric;
-import org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric;
-import org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetrics;
+import org.apache.flink.kubernetes.operator.autoscaler.metrics.*;
 import org.apache.flink.kubernetes.operator.autoscaler.topology.JobTopology;
 import org.apache.flink.kubernetes.operator.autoscaler.utils.AutoScalerUtils;
 import org.apache.flink.kubernetes.operator.service.FlinkService;
@@ -41,24 +39,13 @@ import org.apache.flink.runtime.rest.messages.job.metrics.AggregatedMetric;
 import org.apache.flink.runtime.rest.messages.job.metrics.AggregatedSubtaskMetricsHeaders;
 import org.apache.flink.runtime.rest.messages.job.metrics.AggregatedSubtaskMetricsParameters;
 import org.apache.flink.util.Preconditions;
-
-import io.javaoperatorsdk.operator.processing.event.ResourceID;
-import lombok.SneakyThrows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -406,14 +393,22 @@ public abstract class ScalingMetricCollector {
             requiredMetrics.add(FlinkMetric.NUM_RECORDS_OUT_PER_SEC);
         }
 
+        requiredMetrics.add(FlinkMetric.ROCKS_DB_BLOCK_CACHE_USAGE);
+        requiredMetrics.add(FlinkMetric.ROCKS_DB_LIVE_SST_FILES_SIZE);
+        requiredMetrics.add(FlinkMetric.ROCKS_DB_BLOCK_CACHE_HIT);
+        requiredMetrics.add(FlinkMetric.ROCKS_DB_BLOCK_CACHE_MISS);
+        requiredMetrics.add(FlinkMetric.ROCKS_DB_ESTIMATE_NUM_KEYS);
+
         for (FlinkMetric flinkMetric : requiredMetrics) {
             Optional<String> flinkMetricName = flinkMetric.findAny(allMetricNames);
             if (flinkMetricName.isPresent()) {
                 // Add actual Flink metric name to list
                 filteredMetrics.put(flinkMetricName.get(), flinkMetric);
             } else {
-                throw new RuntimeException(
-                        "Could not find required metric " + flinkMetric + " for " + jobVertexID);
+                if (!requiredMetrics.toString().contains("ROCKS_DB")) {
+                    throw new RuntimeException(
+                            "Could not find required metric " + flinkMetric + " for " + jobVertexID);
+                }
             }
         }
 

@@ -23,17 +23,9 @@ import org.apache.flink.kubernetes.operator.kubeclient.parameters.ParametersTest
 import org.apache.flink.kubernetes.operator.kubeclient.parameters.StandaloneKubernetesTaskManagerParameters;
 import org.apache.flink.kubernetes.operator.kubeclient.utils.TestUtils;
 import org.apache.flink.kubernetes.operator.utils.StandaloneKubernetesUtils;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.Container;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.ContainerPort;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.ContainerPortBuilder;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.ObjectMeta;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.OwnerReference;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.PodSpec;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.Quantity;
-import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.ResourceRequirements;
+import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.*;
 import org.apache.flink.kubernetes.shaded.io.fabric8.kubernetes.api.model.apps.Deployment;
 import org.apache.flink.kubernetes.utils.Constants;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -136,6 +128,10 @@ public class StandaloneKubernetesTaskManagerFactoryTest extends ParametersTestBa
                         new ContainerPortBuilder()
                                 .withName(TEMPLATE_PORT_NAME)
                                 .withContainerPort(TEMPLATE_PORT)
+                                .build(),
+                        new ContainerPortBuilder()
+                                .withName("prom")
+                                .withContainerPort(9249)
                                 .build());
 
         assertThat(mainContainer.getPorts(), containsInAnyOrder(expectedContainerPorts.toArray()));

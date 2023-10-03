@@ -30,39 +30,29 @@ import java.util.stream.Collectors;
  * Enum representing the collected Flink metrics for autoscaling. The actual metric names depend on
  * the JobGraph.
  */
-public enum FlinkMetric {
-    BUSY_TIME_PER_SEC(s -> s.equals("busyTimeMsPerSecond")),
-    NUM_RECORDS_IN_PER_SEC(s -> s.equals("numRecordsInPerSecond")),
-    NUM_RECORDS_OUT_PER_SEC(s -> s.equals("numRecordsOutPerSecond")),
-    SOURCE_TASK_NUM_RECORDS_OUT_PER_SEC(
-            s -> s.startsWith("Source__") && s.endsWith(".numRecordsOutPerSecond")),
-    SOURCE_TASK_NUM_RECORDS_IN_PER_SEC(
-            s -> s.startsWith("Source__") && s.endsWith(".numRecordsInPerSecond")),
-    PENDING_RECORDS(s -> s.endsWith(".pendingRecords")),
-    ROCKS_DB_BLOCK_CACHE_HIT(s -> s.endsWith(".rocksdb_block_cache_hit")),
-    ROCKS_DB_BLOCK_CACHE_MISS(s -> s.endsWith(".rocksdb_block_cache_miss")),
+public enum RocksDBMetric {
+    ROCKS_DB_BLOCK_CACHE_HIT(s -> s.endsWith(".rocksdb_block-cache-hit")),
+    ROCKS_DB_BLOCK_CACHE_MISS(s -> s.endsWith(".rocksdb_block-cache-miss")),
     ROCKS_DB_BLOCK_CACHE_USAGE(s -> s.endsWith(".rocksdb_block-cache-usage")),
     ROCKS_DB_ESTIMATE_NUM_KEYS(s -> s.endsWith(".rocksdb_estimate-num-keys")),
     ROCKS_DB_LIVE_SST_FILES_SIZE(s -> s.endsWith(".rocksdb_live-sst-files-size"));
 
-    public static final Map<FlinkMetric, AggregatedMetric> FINISHED_METRICS =
-            Map.ofEntries(
-                    Map.entry(FlinkMetric.BUSY_TIME_PER_SEC, zero()),
-                    Map.entry(FlinkMetric.PENDING_RECORDS, zero()),
-                    Map.entry(FlinkMetric.NUM_RECORDS_IN_PER_SEC, zero()),
-                    Map.entry(FlinkMetric.NUM_RECORDS_OUT_PER_SEC, zero()),
-                    Map.entry(FlinkMetric.SOURCE_TASK_NUM_RECORDS_IN_PER_SEC, zero()),
-                    Map.entry(FlinkMetric.SOURCE_TASK_NUM_RECORDS_OUT_PER_SEC, zero()),
-                    Map.entry(FlinkMetric.ROCKS_DB_BLOCK_CACHE_HIT, zero()),
-                    Map.entry(FlinkMetric.ROCKS_DB_BLOCK_CACHE_MISS, zero()),
-                    Map.entry(FlinkMetric.ROCKS_DB_BLOCK_CACHE_USAGE, zero()),
-                    Map.entry(FlinkMetric.ROCKS_DB_ESTIMATE_NUM_KEYS, zero()),
-                    Map.entry(FlinkMetric.ROCKS_DB_LIVE_SST_FILES_SIZE, zero())
-            );
+    public static final Map<RocksDBMetric, AggregatedMetric> FINISHED_METRICS =
+            Map.of(
+                    RocksDBMetric.ROCKS_DB_BLOCK_CACHE_HIT, zero(),
+                    RocksDBMetric.ROCKS_DB_BLOCK_CACHE_MISS, zero(),
+                    RocksDBMetric.ROCKS_DB_BLOCK_CACHE_USAGE, zero(),
+                    RocksDBMetric.ROCKS_DB_ESTIMATE_NUM_KEYS, zero(),
+                    RocksDBMetric.ROCKS_DB_LIVE_SST_FILES_SIZE, zero());
+
     public final Predicate<String> predicate;
 
-    FlinkMetric(Predicate<String> predicate) {
+    RocksDBMetric(Predicate<String> predicate) {
         this.predicate = predicate;
+    }
+
+    private static AggregatedMetric zero() {
+        return new AggregatedMetric("", 0., 0., 0., 0.);
     }
 
     public Optional<String> findAny(Collection<AggregatedMetric> metrics) {
@@ -74,9 +64,5 @@ public enum FlinkMetric {
                 .map(AggregatedMetric::getId)
                 .filter(predicate)
                 .collect(Collectors.toList());
-    }
-
-    private static AggregatedMetric zero() {
-        return new AggregatedMetric("", 0., 0., 0., 0.);
     }
 }

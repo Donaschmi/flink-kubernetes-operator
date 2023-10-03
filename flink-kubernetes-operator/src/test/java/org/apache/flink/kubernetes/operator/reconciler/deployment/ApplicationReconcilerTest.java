@@ -17,39 +17,22 @@
 
 package org.apache.flink.kubernetes.operator.reconciler.deployment;
 
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient;
+import lombok.Getter;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.client.program.rest.RestClusterClient;
-import org.apache.flink.configuration.ConfigOption;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.configuration.CoreOptions;
-import org.apache.flink.configuration.HighAvailabilityOptions;
-import org.apache.flink.configuration.JobManagerOptions;
-import org.apache.flink.configuration.PipelineOptions;
-import org.apache.flink.configuration.PipelineOptionsInternal;
-import org.apache.flink.configuration.SchedulerExecutionMode;
+import org.apache.flink.configuration.*;
 import org.apache.flink.kubernetes.configuration.KubernetesConfigOptions;
 import org.apache.flink.kubernetes.operator.OperatorTestBase;
 import org.apache.flink.kubernetes.operator.TestUtils;
 import org.apache.flink.kubernetes.operator.TestingFlinkResourceContextFactory;
 import org.apache.flink.kubernetes.operator.api.AbstractFlinkResource;
 import org.apache.flink.kubernetes.operator.api.FlinkDeployment;
-import org.apache.flink.kubernetes.operator.api.spec.FlinkDeploymentSpec;
-import org.apache.flink.kubernetes.operator.api.spec.FlinkVersion;
-import org.apache.flink.kubernetes.operator.api.spec.JobSpec;
-import org.apache.flink.kubernetes.operator.api.spec.JobState;
-import org.apache.flink.kubernetes.operator.api.spec.KubernetesDeploymentMode;
-import org.apache.flink.kubernetes.operator.api.spec.UpgradeMode;
-import org.apache.flink.kubernetes.operator.api.status.Checkpoint;
-import org.apache.flink.kubernetes.operator.api.status.CheckpointInfo;
-import org.apache.flink.kubernetes.operator.api.status.FlinkDeploymentStatus;
-import org.apache.flink.kubernetes.operator.api.status.JobManagerDeploymentStatus;
-import org.apache.flink.kubernetes.operator.api.status.JobStatus;
-import org.apache.flink.kubernetes.operator.api.status.ReconciliationState;
-import org.apache.flink.kubernetes.operator.api.status.Savepoint;
-import org.apache.flink.kubernetes.operator.api.status.SavepointInfo;
-import org.apache.flink.kubernetes.operator.api.status.SnapshotInfo;
-import org.apache.flink.kubernetes.operator.api.status.SnapshotTriggerType;
+import org.apache.flink.kubernetes.operator.api.spec.*;
+import org.apache.flink.kubernetes.operator.api.status.*;
 import org.apache.flink.kubernetes.operator.api.utils.FlinkResourceUtils;
 import org.apache.flink.kubernetes.operator.config.FlinkOperatorConfiguration;
 import org.apache.flink.kubernetes.operator.config.KubernetesOperatorConfigOptions;
@@ -65,15 +48,11 @@ import org.apache.flink.kubernetes.operator.utils.EventRecorder;
 import org.apache.flink.kubernetes.operator.utils.SnapshotStatus;
 import org.apache.flink.kubernetes.operator.utils.SnapshotUtils;
 import org.apache.flink.runtime.client.JobStatusMessage;
+import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.highavailability.JobResultStoreOptions;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobgraph.JobVertexResourceRequirements;
 import org.apache.flink.util.concurrent.Executors;
-
-import io.fabric8.kubernetes.api.model.ObjectMeta;
-import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -97,12 +76,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.apache.flink.kubernetes.operator.api.utils.FlinkResourceUtils.getCheckpointInfo;
-import static org.apache.flink.kubernetes.operator.api.utils.FlinkResourceUtils.getJobSpec;
-import static org.apache.flink.kubernetes.operator.api.utils.FlinkResourceUtils.getJobStatus;
-import static org.apache.flink.kubernetes.operator.api.utils.FlinkResourceUtils.getReconciledJobSpec;
-import static org.apache.flink.kubernetes.operator.api.utils.FlinkResourceUtils.getReconciledJobState;
-import static org.apache.flink.kubernetes.operator.api.utils.FlinkResourceUtils.getSavepointInfo;
+import static org.apache.flink.kubernetes.operator.api.utils.FlinkResourceUtils.*;
+import static org.apache.flink.kubernetes.operator.config.KubernetesOperatorConfigOptions.JUSTIN_OVERRIDES;
 import static org.apache.flink.kubernetes.operator.config.KubernetesOperatorConfigOptions.OPERATOR_CLUSTER_HEALTH_CHECK_ENABLED;
 import static org.apache.flink.kubernetes.operator.reconciler.SnapshotType.CHECKPOINT;
 import static org.apache.flink.kubernetes.operator.reconciler.SnapshotType.SAVEPOINT;
@@ -110,12 +85,7 @@ import static org.apache.flink.kubernetes.operator.reconciler.deployment.Abstrac
 import static org.apache.flink.kubernetes.operator.reconciler.deployment.ApplicationReconciler.MSG_RECOVERY;
 import static org.apache.flink.kubernetes.operator.reconciler.deployment.ApplicationReconciler.MSG_RESTART_UNHEALTHY;
 import static org.apache.flink.kubernetes.operator.utils.SnapshotUtils.getLastSnapshotStatus;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** @link JobStatusObserver unit tests */
 @EnableKubernetesMockClient(crud = true)
@@ -905,6 +875,146 @@ public class ApplicationReconcilerTest extends OperatorTestBase {
                         .getResourceContext(deployment, context)
                         .getObserveConfig()
                         .get(PipelineOptions.PARALLELISM_OVERRIDES));
+    }
+
+
+    @Test
+    public void testApplyJustin() throws Exception {
+        var ctxFactory =
+                new TestingFlinkResourceContextFactory(
+                        getKubernetesClient(),
+                        configManager,
+                        operatorMetricGroup,
+                        flinkService,
+                        eventRecorder);
+        var overrides = new HashMap<String, String>();
+        var justin = new HashMap<String, String>();
+        JobAutoScalerFactory autoscalerFactory =
+                (k, r) ->
+                        new NoopJobAutoscalerFactory() {
+                            @Override
+                            public Map<String, String> getParallelismOverrides(
+                                    FlinkResourceContext<?> ctx) {
+                                return new HashMap<>(overrides);
+                            }
+
+                            @Override
+                            public Map<String, String> getJustinOverrides(
+                                    FlinkResourceContext<?> ctx) {
+                                return new HashMap<>(justin);
+                            }
+
+                            @Override
+                            public boolean scale(FlinkResourceContext<?> ctx) {
+                                return true;
+                            }
+                        };
+
+        appReconciler =
+                new ApplicationReconciler(
+                        kubernetesClient, eventRecorder, statusRecorder, autoscalerFactory);
+        var deployment = TestUtils.buildApplicationCluster();
+        appReconciler.reconcile(ctxFactory.getResourceContext(deployment, context));
+        verifyAndSetRunningJobsToStatus(deployment, flinkService.listJobs());
+        assertFalse(deployment.getStatus().isImmediateReconciliationNeeded());
+
+        // Job running verify no upgrades if overrides are empty
+        appReconciler.reconcile(ctxFactory.getResourceContext(deployment, context));
+        assertEquals(
+                ReconciliationState.DEPLOYED,
+                deployment.getStatus().getReconciliationStatus().getState());
+        assertEquals("RUNNING", deployment.getStatus().getJobStatus().getState());
+        assertTrue(deployment.getStatus().isImmediateReconciliationNeeded());
+
+        // Test when there are only overrides by the autoscaler
+        var v1 = new JobVertexID();
+        overrides.put(v1.toHexString(), "2");
+
+        var rp1 = ResourceProfile.fromResources(1.0, 100);
+        justin.put(v1.toHexString(), ConfigurationUtils.convertValue(rp1, String.class));
+
+        appReconciler.reconcile(ctxFactory.getResourceContext(deployment, context));
+        assertEquals(
+                ReconciliationState.UPGRADING,
+                deployment.getStatus().getReconciliationStatus().getState());
+        appReconciler.reconcile(ctxFactory.getResourceContext(deployment, context));
+        assertEquals(
+                ReconciliationState.DEPLOYED,
+                deployment.getStatus().getReconciliationStatus().getState());
+        verifyAndSetRunningJobsToStatus(deployment, flinkService.listJobs());
+
+        assertEquals(
+                Map.of(v1.toHexString(), "2"),
+                ctxFactory
+                        .getResourceContext(deployment, context)
+                        .getObserveConfig()
+                        .get(PipelineOptions.PARALLELISM_OVERRIDES));
+
+        assertEquals(
+                Map.of(v1.toHexString(), rp1.toString()),
+                ctxFactory
+                        .getResourceContext(deployment, context)
+                        .getObserveConfig()
+                        .get(JUSTIN_OVERRIDES));
+
+        // Test when there are also user overrides, autoscaler should take precedence
+
+        // This should be ignored
+        deployment
+                .getSpec()
+                .getFlinkConfiguration()
+                .put(PipelineOptions.PARALLELISM_OVERRIDES.key(), v1 + ":1");
+        deployment
+                .getSpec()
+                .getFlinkConfiguration()
+                .put(JUSTIN_OVERRIDES.key(), v1 + ":" + ResourceProfile.UNKNOWN);
+
+        appReconciler.reconcile(ctxFactory.getResourceContext(deployment, context));
+        assertEquals(
+                ReconciliationState.DEPLOYED,
+                deployment.getStatus().getReconciliationStatus().getState());
+        assertEquals(
+                Map.of(v1.toHexString(), "2"),
+                ctxFactory
+                        .getResourceContext(deployment, context)
+                        .getObserveConfig()
+                        .get(PipelineOptions.PARALLELISM_OVERRIDES));
+        assertEquals(
+                Map.of(v1.toHexString(), rp1.toString()),
+                ctxFactory
+                        .getResourceContext(deployment, context)
+                        .getObserveConfig()
+                        .get(JUSTIN_OVERRIDES));
+
+        // Define partly overlapping overrides
+        var v2 = new JobVertexID();
+        ResourceProfile rp2 = ResourceProfile.fromResources(2.0, 200);
+        deployment
+                .getSpec()
+                .getFlinkConfiguration()
+                .put(PipelineOptions.PARALLELISM_OVERRIDES.key(), v1 + ":1," + v2 + ":4");
+        System.out.println(v1 + ":" + ConfigurationUtils.convertValue(rp1, String.class));
+        var map2 = Map.of(v1.toHexString(), rp1.toString(), v2.toHexString(), rp2.toString());
+        deployment
+                .getSpec()
+                .getFlinkConfiguration()
+                .put(JUSTIN_OVERRIDES.key(), ConfigurationUtils.convertValue(map2, String.class));
+        appReconciler.reconcile(ctxFactory.getResourceContext(deployment, context));
+        assertEquals(
+                ReconciliationState.UPGRADING,
+                deployment.getStatus().getReconciliationStatus().getState());
+        appReconciler.reconcile(ctxFactory.getResourceContext(deployment, context));
+        assertEquals(
+                ReconciliationState.DEPLOYED,
+                deployment.getStatus().getReconciliationStatus().getState());
+        verifyAndSetRunningJobsToStatus(deployment, flinkService.listJobs());
+
+        assertEquals(
+                Map.of(v1.toString(), rp1.toString(), v2.toString(), rp2.toString()),
+                ctxFactory
+                        .getResourceContext(deployment, context)
+                        .getObserveConfig()
+                        .get(JUSTIN_OVERRIDES));
     }
 
     @ParameterizedTest

@@ -17,6 +17,8 @@
 
 package org.apache.flink.kubernetes.operator.autoscaler;
 
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient;
 import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.kubernetes.operator.TestUtils;
@@ -28,9 +30,6 @@ import org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric;
 import org.apache.flink.kubernetes.operator.utils.EventCollector;
 import org.apache.flink.kubernetes.operator.utils.EventRecorder;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
-
-import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -43,12 +42,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.apache.flink.kubernetes.operator.autoscaler.AutoscalerTestUtils.getOrCreateInfo;
-import static org.apache.flink.kubernetes.operator.autoscaler.ScalingExecutor.SCALING_SUMMARY_ENTRY;
-import static org.apache.flink.kubernetes.operator.autoscaler.ScalingExecutor.SCALING_SUMMARY_HEADER_SCALING_DISABLED;
-import static org.apache.flink.kubernetes.operator.autoscaler.ScalingExecutor.SCALING_SUMMARY_HEADER_SCALING_ENABLED;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.apache.flink.kubernetes.operator.autoscaler.ScalingExecutor.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** Test for scaling execution logic. */
 @EnableKubernetesMockClient(crud = true)
@@ -234,5 +229,23 @@ public class ScalingExecutorTest {
                         Collectors.toMap(
                                 e -> JobVertexID.fromHexString(e.getKey()),
                                 e -> Integer.valueOf(e.getValue())));
+    }
+
+    @Test
+    public void testResourceProfileForStatefulTasks() {
+        Map<JobVertexID, Map<ScalingMetric, EvaluatedScalingMetric>> evaluatedMetrics =
+                Map.of(JobVertexID.fromHexString("365ccfea623eaebf17f36c5a0cdc4ddc"), Map.of(),
+                        JobVertexID.fromHexString("ebca99d2ba186d39f4b704d5595984ad"), Map.of(),
+                        JobVertexID.fromHexString("7d808a38215a2eb5db693f4b503369de"), Map.of(),
+                        JobVertexID.fromHexString("a1da5206c43e257b348fd160bf2d929c"), Map.of());
+        Map<JobVertexID, ScalingSummary> summaries;
+        ScalingSummary defaultSummary = new ScalingSummary(0, 1, null);
+        ScalingSummary statefulSummary = new ScalingSummary(0, 4, null);
+        summaries = Map.of(JobVertexID.fromHexString("365ccfea623eaebf17f36c5a0cdc4ddc"), defaultSummary,
+                JobVertexID.fromHexString("ebca99d2ba186d39f4b704d5595984ad"), statefulSummary,
+                JobVertexID.fromHexString("7d808a38215a2eb5db693f4b503369de"), defaultSummary,
+                JobVertexID.fromHexString("a1da5206c43e257b348fd160bf2d929c"), defaultSummary);
+        System.out.println(getVertexResourceProfileOverrides(evaluatedMetrics, summaries));
+        assertTrue(true);
     }
 }

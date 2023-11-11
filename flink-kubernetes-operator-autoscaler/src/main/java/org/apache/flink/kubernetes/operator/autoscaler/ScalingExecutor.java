@@ -24,8 +24,8 @@ import org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions;
 import org.apache.flink.kubernetes.operator.autoscaler.metrics.EvaluatedScalingMetric;
 import org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric;
 import org.apache.flink.kubernetes.operator.utils.EventRecorder;
-import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
+import org.apache.flink.runtime.jobgraph.justin.ResourceProfile;
 import org.apache.flink.util.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -114,7 +114,7 @@ public class ScalingExecutor {
         summaries.forEach(
                 (jobVertexID, scalingSummary) -> {
                     LOG.debug("Summary: {} -> {} ", jobVertexID, scalingSummary);
-                    if (jobVertexID.toHexString().compareTo("ebca99d2ba186d39f4b704d5595984ad") == 0) {
+                    if (evaluatedMetrics.get(jobVertexID).containsKey(ROCKS_DB_BLOCK_CACHE_HIT_RATE)) {
                         scalingSummary.setNewResourceProfile(statefulResourceProfile);
                     } else {
                         scalingSummary.setNewResourceProfile(defaultResourceProfile);
@@ -172,8 +172,8 @@ public class ScalingExecutor {
         var statefulTasks = 0;
         for (Map.Entry<JobVertexID, ScalingSummary> summary :
                 summaries.entrySet()) {
-            if (summary.getKey().toHexString().compareTo("ebca99d2ba186d39f4b704d5595984ad") == 0) {
-                statefulTasks = summary.getValue().getNewParallelism();
+            if (evaluatedMetrics.get(summary.getKey()).containsKey(ROCKS_DB_BLOCK_CACHE_HIT_RATE)) {
+                statefulTasks += summary.getValue().getNewParallelism();
             }
             totalTasks += summary.getValue().getNewParallelism();
         }

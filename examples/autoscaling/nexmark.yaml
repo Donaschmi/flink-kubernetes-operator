@@ -21,27 +21,36 @@ kind: FlinkDeployment
 metadata:
   name: flink
 spec:
-  image: donaschmitz/justin:1.0
+  image: donaschmitz/justin:1.8
   flinkVersion: v1_18
   flinkConfiguration:
     kubernetes.operator.job.autoscaler.enabled: "true"
     kubernetes.operator.job.autoscaler.justin.enabled: "true"
-    kubernetes.operator.job.autoscaler.stabilization.interval: "1m"
-    kubernetes.operator.job.autoscaler.metrics.window: "2m"
-    pipeline.max-parallelism: "24"
+    kubernetes.operator.justin.enabled: "true"
+    kubernetes.operator.job.autoscaler.stabilization.interval: "5m"
+    kubernetes.operator.job.autoscaler.metrics.window: "5m"
+    kubernetes.operator.job.autoscaler.target.utilization: "0.5"
+    kubernetes.operator.job.autoscaler.target.utilization.boundary: "0.10"
+    pipeline.max-parallelism: "200"
     taskmanager.numberOfTaskSlots: "4"
-    state.savepoints.dir: file:///tmp/savepoints
-    state.checkpoints.dir: file:///tmp/checkpoints
     high-availability.type: kubernetes
     high-availability.storageDir: file:///tmp/ha
-    execution.checkpointing.interval: "1m"
+    execution.checkpointing.interval: "10000m"
     jobmanager.scheduler: adaptive
-    kubernetes.operator.job.autoscaler.target.utilization.boundary: "0.1"
     metrics.reporters: prom
     metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
     #metrics.reporter.prom.port: 9250-9260
     web.submit.enable: "true"
     web.cancel.enable: "true"
+    state.backend: rocksdb
+
+    s3.endpoint: "http://minio.manager:9000"
+    s3.path.style.access: "true"
+    s3.access-key: "root"
+    s3.secret-key: "rootroot"
+    state.savepoints.dir: s3://flink/flink-checkpoints
+    state.checkpoints.dir: s3://flink/flink-checkpoints
+    state.backend.incremental: "true"
 
     state.backend.rocksdb.use-direct-reads: "true"
     state.backend.rocksdb.use-direct-writes: "true"
@@ -110,6 +119,7 @@ spec:
       metadata:
         name: job-manager-pod-template
       spec:
+        # restartPolicy: Never
         initContainers:
           # Sample init container for fetching remote artifacts
           - name: busybox
@@ -121,7 +131,9 @@ spec:
               - /bin/sh
               - -c
               - "wget -O /opt/flink/downloads/job.jar \
-                https://forge.uclouvain.be/DonatienSchmitz/justin/-/raw/main/FineGrain.jar"
+                https://forge.uclouvain.be/DonatienSchmitz/justin/-/raw/main/nexmark/Query8.jar"
+              #- "wget -O /opt/flink/downloads/job.jar \
+              #  https://forge.uclouvain.be/DonatienSchmitz/justin/-/raw/33e0f192cbc25f0afb604dcc029495526c93307d/nexmark/Query8.jar"
   taskManager:
     resource:
       memory: "4096m"
@@ -134,32 +146,26 @@ spec:
   job:
     jarURI: local:///opt/flink/downloads/job.jar
     parallelism: 1
-    upgradeMode: stateless
+    upgradeMode: last-state
     args:
-      - "--environment.parallelism"
-      - "1"
-      - "--environment.checkpoint_interval"
-      - "600000"
-      - "--state_backend"
-      - "rocks"
-      - "--state_backend.checkpoint_directory"
-      - "file:///tmp/flink"
-      - "--state_backend.rocks.incremental"
-      - "true"
-      - "--sequence_generator_source.sleep_time"
-      - "1"
-      - "--sequence_generator_source.keyspace"
-      - "1000000"
-      - "--sequence_generator_source.payload_size"
-      - "500"
-      - "--useValueState"
-      - "true"
-      - "--useListState"
-      - "true"
-      - "--useMapState"
-      - "true"
-      - "--useWindow"
+      - "--disabledOperatorChaining"
       - "false"
+      - "--auction-srcRate"
+      - "7500"
+      - "--person-srcRate"
+      - "9000"
+      - "--p-auction-source"
+      - "2"
+      - "--stateless"
+      - "false"
+      - "--fixedRate"
+      - "false"
+      - "--changingRateInterval"
+      - "900000"
+      - "--changingRateRatio"
+      - "0.65"
+      - "--changingRateSteps"
+      - "5"
 
   logConfiguration:
     "log4j-console.properties": |
@@ -186,3 +192,10 @@ spec:
       logger.zookeeper.level = INFO
       logger.netty.name = org.apache.flink.shaded.akka.org.jboss.netty.channel.DefaultChannelPipeline
       logger.netty.level = OFF
+
+      log4j.logger.org.apache.http.wire = OFF
+      log4j.logger.org.apache.http.headers = OFF
+      logger.http.name = org.apache.http
+      logger.http.level = OFF
+      logger.aws.name = com.amazonaws
+      logger.aws.level = OFF

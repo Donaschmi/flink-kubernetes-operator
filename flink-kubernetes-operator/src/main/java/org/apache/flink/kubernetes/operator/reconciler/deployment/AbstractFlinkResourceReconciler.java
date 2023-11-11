@@ -151,6 +151,7 @@ public abstract class AbstractFlinkResourceReconciler<
 
         var observeConfig = ctx.getObserveConfig();
         if (specChanged) {
+            LOG.debug("specChanged");
             var deployConfig = ctx.getDeployConfig(cr.getSpec());
             if (checkNewSpecAlreadyDeployed(cr, deployConfig)) {
                 return;
@@ -158,7 +159,9 @@ public abstract class AbstractFlinkResourceReconciler<
             triggerSpecChangeEvent(cr, specDiff);
 
             // Try scaling if this is not an upgrade change
-            boolean scaled = diffType != DiffType.UPGRADE && scale(ctx, deployConfig);
+            //boolean scaled = diffType != DiffType.UPGRADE && scale(ctx, deployConfig);
+            boolean scaled = scale(ctx, deployConfig);
+            LOG.debug("scaled :" + scaled);
 
             // Reconcile spec change unless scaling was enough
             if (scaled || reconcileSpecChange(ctx, deployConfig)) {

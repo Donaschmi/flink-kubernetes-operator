@@ -62,7 +62,7 @@ import org.apache.flink.runtime.rest.messages.job.JobResourceRequirementsHeaders
 import org.apache.flink.runtime.rest.messages.job.JobResourcesRequirementsUpdateHeaders;
 import org.apache.flink.runtime.rest.messages.job.justin.JustinResourceRequirementsBody;
 import org.apache.flink.runtime.rest.messages.job.justin.JustinResourceRequirementsHeaders;
-import org.apache.flink.runtime.rest.messages.job.justin.JustinResourcesRequirementsUpdateHeaders;
+import org.apache.flink.runtime.rest.messages.job.justin.JustinResourceRequirementsUpdateHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,6 +73,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.apache.flink.kubernetes.operator.config.FlinkConfigBuilder.FLINK_VERSION;
+import static org.apache.flink.kubernetes.operator.config.KubernetesOperatorConfigOptions.JUSTIN_ENABLED;
 import static org.apache.flink.kubernetes.operator.config.KubernetesOperatorConfigOptions.JUSTIN_OVERRIDES;
 
 /**
@@ -186,12 +187,18 @@ public class NativeFlinkService extends AbstractFlinkService {
     public ScalingResult scale(FlinkResourceContext<?> ctx, Configuration deployConfig)
             throws Exception {
 
+        LOG.debug("We are in scale");
+        LOG.debug(String.valueOf(ctx.getObserveConfig()));
+        if (ctx.getObserveConfig().get(JUSTIN_ENABLED)) {
+            LOG.info("Justin in-place rescaling.");
+            return justin(ctx, deployConfig);
+        }
         var resource = ctx.getResource();
         var observeConfig = ctx.getObserveConfig();
 
-        if (!supportsInPlaceScaling(resource, observeConfig)) {
-            return ScalingResult.CANNOT_SCALE;
-        }
+        //if (!supportsInPlaceScaling(resource, observeConfig)) {
+        //    return ScalingResult.CANNOT_SCALE;
+        //}
 
         var newOverrides = deployConfig.get(PipelineOptions.PARALLELISM_OVERRIDES);
         var previousOverrides = observeConfig.get(PipelineOptions.PARALLELISM_OVERRIDES);
@@ -253,9 +260,9 @@ public class NativeFlinkService extends AbstractFlinkService {
         var resource = ctx.getResource();
         var observeConfig = ctx.getObserveConfig();
 
-        if (!supportsInPlaceScaling(resource, observeConfig)) {
-            return ScalingResult.CANNOT_SCALE;
-        }
+        //if (!supportsInPlaceScaling(resource, observeConfig)) {
+        //    return ScalingResult.CANNOT_SCALE;
+        //}
 
         var newOverrides = deployConfig.get(PipelineOptions.PARALLELISM_OVERRIDES);
         var previousOverrides = observeConfig.get(PipelineOptions.PARALLELISM_OVERRIDES);
@@ -268,10 +275,11 @@ public class NativeFlinkService extends AbstractFlinkService {
 
         try (var client = getClusterClient(observeConfig)) {
 
-            var requirements = new HashMap<>(getJustinVertexResources(client, resource));
+            var requirements = new HashMap<>(getVertexResources(client, resource));
+            var justinRequirements = new HashMap<JobVertexID, JustinVertexResourceRequirements>();
             var result = ScalingResult.ALREADY_SCALED;
 
-            for (Map.Entry<JobVertexID, JustinVertexResourceRequirements> entry :
+            for (Map.Entry<JobVertexID, JobVertexResourceRequirements> entry :
                     requirements.entrySet()) {
                 var jobVertexId = entry.getKey().toString();
                 var parallelism = entry.getValue().getParallelism();
@@ -285,7 +293,7 @@ public class NativeFlinkService extends AbstractFlinkService {
                     var resourceProfile = FlinkUtils.parseResourceProfile(overrideJustin);
                     // If the requirements changed we mark this as scaling triggered
                     if (!parallelism.equals(newParallelism)) {
-                        entry.setValue(new JustinVertexResourceRequirements(newParallelism, resourceProfile));
+                        justinRequirements.put(entry.getKey(), new JustinVertexResourceRequirements(newParallelism, resourceProfile));
                         result = ScalingResult.SCALING_TRIGGERED;
                     }
                 } else if (previousOverrides.containsKey(jobVertexId)) {
@@ -300,7 +308,7 @@ public class NativeFlinkService extends AbstractFlinkService {
             if (result == ScalingResult.ALREADY_SCALED) {
                 LOG.info("Vertex resources requirements already match target, nothing to do...");
             } else {
-                updateJustinVertexResources(client, resource, requirements);
+                updateJustinVertexResources(client, resource, justinRequirements);
                 eventRecorder.triggerEvent(
                         resource,
                         EventRecorder.Type.Normal,
@@ -372,7 +380,7 @@ public class NativeFlinkService extends AbstractFlinkService {
 
         var requestBody = new JustinResourceRequirementsBody(new JustinResourceRequirements(newReqs));
 
-        client.sendRequest(new JustinResourcesRequirementsUpdateHeaders(), jobParameters, requestBody)
+        client.sendRequest(new JustinResourceRequirementsUpdateHeaders(), jobParameters, requestBody)
                 .get(operatorConfig.getFlinkClientTimeout().toSeconds(), TimeUnit.SECONDS);
     }
 

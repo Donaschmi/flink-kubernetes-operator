@@ -17,14 +17,13 @@
 
 package org.apache.flink.kubernetes.operator.autoscaler.metrics;
 
+import org.apache.commons.math3.util.Precision;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions;
 import org.apache.flink.kubernetes.operator.autoscaler.topology.JobTopology;
 import org.apache.flink.kubernetes.operator.autoscaler.utils.AutoScalerUtils;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.rest.messages.job.metrics.AggregatedMetric;
-
-import org.apache.commons.math3.util.Precision;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -120,6 +119,23 @@ public class ScalingMetrics {
         } else {
             scalingMetrics.put(ScalingMetric.LAG, 0.);
         }
+    }
+
+    public static void computeCacheRateMetrics(
+            JobVertexID jobVertexID,
+            Map<FlinkMetric, AggregatedMetric> flinkMetrics,
+            Map<ScalingMetric, Double> scalingMetrics) {
+
+        double cacheHits = flinkMetrics.get(FlinkMetric.ROCKS_DB_BLOCK_CACHE_HIT).getSum();
+        double cacheMisses = flinkMetrics.get(FlinkMetric.ROCKS_DB_BLOCK_CACHE_MISS).getSum();
+
+        double rate = 0.0;
+        if (cacheHits != 0 && cacheMisses != 0) {
+            rate = cacheHits / (cacheHits + cacheMisses);
+        }
+        scalingMetrics.put(ScalingMetric.ROCKS_DB_BLOCK_CACHE_HIT, cacheHits);
+        scalingMetrics.put(ScalingMetric.ROCKS_DB_BLOCK_CACHE_MISS, cacheMisses);
+        scalingMetrics.put(ScalingMetric.ROCKS_DB_BLOCK_CACHE_HIT_RATE, rate);
     }
 
     private static double getBusyTimeMsPerSecond(

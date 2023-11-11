@@ -1,0 +1,1378 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 26,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "New link",
+      "tooltip": "",
+      "type": "dashboards",
+      "url": ""
+    }
+  ],
+  "liveNow": false,
+  "panels": [
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "area"
+            }
+          },
+          "mappings": [],
+          "max": 1000,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#E24D42",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 400
+              },
+              {
+                "color": "green",
+                "value": 600
+              },
+              {
+                "color": "red",
+                "value": 800
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 39,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "flink_taskmanager_job_task_busyTimeMsPerSecond{task_name=\"TumblingEventTimeWindows____DummyLatencySink\"}",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Busyness",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "area"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 26,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "flink_taskmanager_job_task_backPressuredTimeMsPerSecond",
+          "hide": false,
+          "instant": false,
+          "interval": "",
+          "legendFormat": "{{task_name}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Map busy time and split backpressure",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 6,
+      "panels": [],
+      "title": "TaskManager",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 8,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "count(flink_taskmanager_Status_JVM_CPU_Time)",
+          "format": "time_series",
+          "hide": false,
+          "instant": false,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "container_memory_usage_bytes{container=\"flink-main-container\", pod=\"flink-taskmanager-1-1\"}",
+          "hide": true,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "C"
+        }
+      ],
+      "title": "TM replicas",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 8,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 37,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "count(flink_taskmanager_job_task_numBytesOut{task_name=\"TumblingEventTimeWindows\"})",
+          "format": "time_series",
+          "hide": false,
+          "instant": false,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "count(flink_taskmanager_job_task_numBytesOut{task_name=\"TumblingEventTimeWindows____DummyLatencySink\"})",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Stateful operator parallelism",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "r/s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": false,
+          "expr": "sum by(job_id)(flink_taskmanager_job_task_numRecordsInPerSecond{task_name=\"TumblingEventTimeWindows\"})",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "sum by(job_id)(flink_taskmanager_job_task_numRecordsInPerSecond{task_name=\"TumblingEventTimeWindows____DummyLatencySink\"})",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Num records out per second",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      },
+      "id": 4,
+      "panels": [],
+      "title": "RocksDB",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 42
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "flink_taskmanager_job_task_operator_rocksdb_block_cache_hit",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "flink_taskmanager_job_task_operator_rocksdb_block_cache_miss",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "B"
+        }
+      ],
+      "title": "RocksDB cache hit + miss",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "area"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 50
+              },
+              {
+                "color": "yellow",
+                "value": 80
+              },
+              {
+                "color": "green",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 42
+      },
+      "id": 18,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "avg(rate(flink_taskmanager_job_task_operator_rocksdb_block_cache_hit[1m]) / (rate(flink_taskmanager_job_task_operator_rocksdb_block_cache_hit[1m]) + rate(flink_taskmanager_job_task_operator_rocksdb_block_cache_miss[1m])))",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "RocksDB cache hit percentage",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 50
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "flink_taskmanager_job_task_operator_rocksdb_bytes_read",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "flink_taskmanager_job_task_operator_rocksdb_bytes_written",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "B"
+        }
+      ],
+      "title": "RocksDB bytes read + written",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 50
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "flink_taskmanager_job_task_operator_column_family_rocksdb_block_cache_usage",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "RocksDB block cache usage",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 58
+      },
+      "id": 28,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "flink_taskmanager_job_task_operator_column_family_rocksdb_live_sst_files_size",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Live SST files size",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 58
+      },
+      "id": 30,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "flink_taskmanager_job_task_operator_column_family_rocksdb_estimate_table_readers_mem",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Estimate table readers mem",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 66
+      },
+      "id": 32,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "flink_taskmanager_job_task_operator_state_name_valueStateGetLatency / 1000000",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "State GET latency",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 66
+      },
+      "id": 36,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "flink_taskmanager_job_task_operator_state_name_valueStateUpdateLatency / 1000000",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "State UPDATE latency",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 74
+      },
+      "id": 34,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "flink_taskmanager_job_task_operator_column_family_rocksdb_estimate_num_keys",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Estimate num keys",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 34,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Flink state analysis",
+  "uid": "213la7Y7x",
+  "version": 17,
+  "weekStart": ""
+}

@@ -17,19 +17,14 @@
 
 package org.apache.flink.kubernetes.operator.autoscaler;
 
+import org.apache.commons.math3.stat.StatUtils;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions;
-import org.apache.flink.kubernetes.operator.autoscaler.metrics.CollectedMetricHistory;
-import org.apache.flink.kubernetes.operator.autoscaler.metrics.CollectedMetrics;
-import org.apache.flink.kubernetes.operator.autoscaler.metrics.Edge;
-import org.apache.flink.kubernetes.operator.autoscaler.metrics.EvaluatedScalingMetric;
-import org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric;
+import org.apache.flink.kubernetes.operator.autoscaler.metrics.*;
 import org.apache.flink.kubernetes.operator.autoscaler.topology.JobTopology;
 import org.apache.flink.kubernetes.operator.autoscaler.utils.AutoScalerUtils;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
-
-import org.apache.commons.math3.stat.StatUtils;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,20 +34,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.SortedMap;
 
-import static org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions.BACKLOG_PROCESSING_LAG_THRESHOLD;
-import static org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions.TARGET_UTILIZATION;
-import static org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions.TARGET_UTILIZATION_BOUNDARY;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.CATCH_UP_DATA_RATE;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.CURRENT_PROCESSING_RATE;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.LAG;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.LOAD;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.MAX_PARALLELISM;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.PARALLELISM;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.SCALE_DOWN_RATE_THRESHOLD;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.SCALE_UP_RATE_THRESHOLD;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.SOURCE_DATA_RATE;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.TARGET_DATA_RATE;
-import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.TRUE_PROCESSING_RATE;
+import static org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions.*;
+import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.*;
 
 /** Job scaling evaluator for autoscaler. */
 public class ScalingMetricEvaluator {
@@ -149,6 +132,14 @@ public class ScalingMetricEvaluator {
         evaluatedMetrics.put(
                 MAX_PARALLELISM,
                 EvaluatedScalingMetric.of(topology.getMaxParallelisms().get(vertex)));
+
+        if (latestVertexMetrics.containsKey(ROCKS_DB_BLOCK_CACHE_HIT_RATE)) {
+            evaluatedMetrics.put(
+                    ROCKS_DB_BLOCK_CACHE_HIT_RATE,
+                    new EvaluatedScalingMetric(
+                            latestVertexMetrics.get(ROCKS_DB_BLOCK_CACHE_HIT_RATE),
+                            getAverage(ROCKS_DB_BLOCK_CACHE_HIT_RATE, vertex, metricsHistory)));
+        }
         computeProcessingRateThresholds(evaluatedMetrics, conf, processingBacklog);
         return evaluatedMetrics;
     }

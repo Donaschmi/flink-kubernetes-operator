@@ -1,6 +1,5 @@
 package org.apache.flink.runtime.jobgraph.justin;
 
-import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 
 import java.io.Serializable;

@@ -40,7 +40,7 @@ import org.apache.flink.kubernetes.operator.api.spec.FlinkVersion;
 import org.apache.flink.kubernetes.operator.reconciler.ReconciliationUtils;
 import org.apache.flink.kubernetes.utils.Constants;
 import org.apache.flink.kubernetes.utils.KubernetesUtils;
-import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
+import org.apache.flink.runtime.jobgraph.justin.ResourceProfile;
 import org.apache.flink.runtime.jobmanager.HighAvailabilityMode;
 import org.apache.flink.runtime.rest.messages.DashboardConfigurationHeaders;
 import org.apache.flink.runtime.util.ZooKeeperUtils;
@@ -464,6 +464,13 @@ public class FlinkUtils {
         if (parsed.equals("0")) {
             return 0;
         }
-        return Integer.parseInt(parsed.split("\\.")[0]);
+        System.out.println(parsed);
+        int value = Integer.parseInt(parsed.split("\\.")[0]);
+        if (parsed.contains("gb")) {
+            value *= 1024;
+        } else if (parsed.contains("kb")) {
+            value /= 1024;
+        }
+        return value;
     }
 }

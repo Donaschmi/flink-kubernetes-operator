@@ -259,6 +259,11 @@ public abstract class ScalingMetricCollector {
                             lagGrowthRate,
                             conf);
 
+                    if (vertexFlinkMetrics.keySet().stream().anyMatch(flinkMetric -> flinkMetric.toString().contains("ROCKS_DB"))) {
+                        LOG.debug("Vertex {} is stateful. Collecting metrics", jobVertexID);
+                        ScalingMetrics.computeCacheRateMetrics(jobVertexID, vertexFlinkMetrics, vertexScalingMetrics);
+                    }
+
                     vertexScalingMetrics
                             .entrySet()
                             .forEach(e -> e.setValue(ScalingMetrics.roundMetric(e.getValue())));

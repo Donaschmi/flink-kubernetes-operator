@@ -22,7 +22,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.apache.flink.kubernetes.operator.autoscaler.metrics.EvaluatedScalingMetric;
 import org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric;
-import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
+import org.apache.flink.runtime.jobgraph.justin.ResourceProfile;
 
 import java.util.Map;
 

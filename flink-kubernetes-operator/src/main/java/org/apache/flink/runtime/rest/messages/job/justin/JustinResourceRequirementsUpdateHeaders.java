@@ -28,12 +28,12 @@ import org.apache.flink.shaded.netty4.io.netty.handler.codec.http.HttpResponseSt
 /**
  * Headers for REST request to patch a job.
  */
-public class JustinResourcesRequirementsUpdateHeaders
+public class JustinResourceRequirementsUpdateHeaders
         implements RuntimeMessageHeaders<
         JustinResourceRequirementsBody, EmptyResponseBody, JobMessageParameters> {
 
-    public static final JustinResourcesRequirementsUpdateHeaders INSTANCE =
-            new JustinResourcesRequirementsUpdateHeaders();
+    public static final JustinResourceRequirementsUpdateHeaders INSTANCE =
+            new JustinResourceRequirementsUpdateHeaders();
 
     private static final String URL = "/jobs/:" + JobIDPathParameter.KEY + "/justin";
 

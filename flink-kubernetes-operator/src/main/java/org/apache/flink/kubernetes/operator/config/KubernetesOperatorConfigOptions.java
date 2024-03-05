@@ -588,4 +588,11 @@ public class KubernetesOperatorConfigOptions {
                             "A parallelism override map (jobVertexId -> parallelism) which will be used to update"
                                     + " the parallelism of the corresponding job vertices of submitted JobGraphs.");
 
+
+    @Documentation.Section(SECTION_DYNAMIC)
+    public static final ConfigOption<String> PROM_ENDPOINT =
+            operatorConfig("prom.endpoint")
+                    .stringType()
+                    .defaultValue("");
+
 }

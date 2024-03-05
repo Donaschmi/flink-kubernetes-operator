@@ -105,7 +105,120 @@ public enum ScalingMetric {
     /**
      * Expected true processing rate after scale up.
      */
-    ROCKS_DB_LIVE_SST_FILES_SIZE(true);
+    ROCKS_DB_LIVE_SST_FILES_SIZE(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    LIST_STATE_GET_MEAN_LATENCY(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    MAP_STATE_GET_MEAN_LATENCY(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    VALUE_STATE_GET_MEAN_LATENCY(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    AGGREGATE_STATE_GET_MEAN_LATENCY(true),
+
+
+    REDUCING_STATE_GET_MEAN_LATENCY(true),
+    /**
+     * Expected true processing rate after scale up.
+     */
+    LIST_STATE_GET_COUNT(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    MAP_STATE_GET_COUNT(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    VALUE_STATE_GET_COUNT(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    AGGREGATE_STATE_GET_COUNT(true),
+
+    REDUCING_STATE_GET_COUNT(true),
+
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    LIST_STATE_ADD_MEAN_LATENCY(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    MAP_STATE_PUT_MEAN_LATENCY(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    VALUE_STATE_UPDATE_MEAN_LATENCY(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    AGGREGATE_STATE_ADD_MEAN_LATENCY(true),
+
+
+    REDUCING_STATE_ADD_MEAN_LATENCY(true),
+    /**
+     * Expected true processing rate after scale up.
+     */
+    LIST_STATE_ADD_COUNT(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    MAP_STATE_PUT_COUNT(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    VALUE_STATE_UPDATE_COUNT(true),
+
+    /**
+     * Expected true processing rate after scale up.
+     */
+    AGGREGATE_STATE_ADD_COUNT(true),
+
+    REDUCING_STATE_ADD_COUNT(true),
+
+    VALUE_STATE_ABSOLUTE_BUSY_TIME(true),
+
+    LIST_STATE_ABSOLUTE_BUSY_TIME(true),
+
+    MAP_STATE_ABSOLUTE_BUSY_TIME(true),
+
+    AGGREGATE_STATE_ABSOLUTE_BUSY_TIME(true),
+
+    REDUCING_STATE_ABSOLUTE_BUSY_TIME(true),
+
+    VALUE_STATE_RELATIVE_BUSY_TIME(true),
+
+    LIST_STATE_RELATIVE_BUSY_TIME(true),
+
+    MAP_STATE_RELATIVE_BUSY_TIME(true),
+
+    AGGREGATE_STATE_RELATIVE_BUSY_TIME(true),
+
+    REDUCING_STATE_RELATIVE_BUSY_TIME(true),
+
+    RELATIVE_ROCKSDB_BUSY_TIME(true),
+
+    ABSOLUTE_ROCKSDB_BUSY_TIME(true);
 
     private final boolean calculateAverage;
 

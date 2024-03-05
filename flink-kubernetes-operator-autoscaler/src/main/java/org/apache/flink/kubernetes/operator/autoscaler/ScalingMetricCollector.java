@@ -261,7 +261,8 @@ public abstract class ScalingMetricCollector {
 
                     if (vertexFlinkMetrics.keySet().stream().anyMatch(flinkMetric -> flinkMetric.toString().contains("ROCKS_DB"))) {
                         LOG.debug("Vertex {} is stateful. Collecting metrics", jobVertexID);
-                        ScalingMetrics.computeCacheRateMetrics(jobVertexID, vertexFlinkMetrics, vertexScalingMetrics);
+                        ScalingMetrics.computeCacheRateMetrics(vertexFlinkMetrics, vertexScalingMetrics);
+                        ScalingMetrics.computeStateLatencyMetrics(vertexFlinkMetrics, vertexScalingMetrics, conf);
                     }
 
                     vertexScalingMetrics
@@ -391,6 +392,7 @@ public abstract class ScalingMetricCollector {
         } else {
             // Not a source so we must have numRecordsInPerSecond
             requiredMetrics.add(FlinkMetric.NUM_RECORDS_IN_PER_SEC);
+            requiredMetrics.addAll(FlinkMetric.JUSTIN_METRICS);
         }
 
         if (!topology.getOutputs().get(jobVertexID).isEmpty()) {
@@ -398,19 +400,13 @@ public abstract class ScalingMetricCollector {
             requiredMetrics.add(FlinkMetric.NUM_RECORDS_OUT_PER_SEC);
         }
 
-        requiredMetrics.add(FlinkMetric.ROCKS_DB_BLOCK_CACHE_USAGE);
-        requiredMetrics.add(FlinkMetric.ROCKS_DB_LIVE_SST_FILES_SIZE);
-        requiredMetrics.add(FlinkMetric.ROCKS_DB_BLOCK_CACHE_HIT);
-        requiredMetrics.add(FlinkMetric.ROCKS_DB_BLOCK_CACHE_MISS);
-        requiredMetrics.add(FlinkMetric.ROCKS_DB_ESTIMATE_NUM_KEYS);
-
         for (FlinkMetric flinkMetric : requiredMetrics) {
             Optional<String> flinkMetricName = flinkMetric.findAny(allMetricNames);
             if (flinkMetricName.isPresent()) {
                 // Add actual Flink metric name to list
                 filteredMetrics.put(flinkMetricName.get(), flinkMetric);
             } else {
-                if (!requiredMetrics.toString().contains("ROCKS_DB")) {
+                if (!requiredMetrics.toString().contains("ROCKS_DB") || !requiredMetrics.toString().contains("MEAN_LATENCY")) {
                     throw new RuntimeException(
                             "Could not find required metric " + flinkMetric + " for " + jobVertexID);
                 }

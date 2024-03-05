@@ -292,10 +292,10 @@ public class NativeFlinkService extends AbstractFlinkService {
                     var newParallelism = new JustinVertexResourceRequirements.Parallelism(p, p);
                     var resourceProfile = FlinkUtils.parseResourceProfile(overrideJustin);
                     // If the requirements changed we mark this as scaling triggered
-                    if (!parallelism.equals(newParallelism)) {
-                        justinRequirements.put(entry.getKey(), new JustinVertexResourceRequirements(newParallelism, resourceProfile));
-                        result = ScalingResult.SCALING_TRIGGERED;
-                    }
+                    // TODO Check if it is a different config
+                    justinRequirements.put(entry.getKey(), new JustinVertexResourceRequirements(newParallelism, resourceProfile));
+
+                    result = ScalingResult.SCALING_TRIGGERED;
                 } else if (previousOverrides.containsKey(jobVertexId)) {
                     LOG.info(
                             "Parallelism override for {} has been removed, falling back to regular upgrade.",

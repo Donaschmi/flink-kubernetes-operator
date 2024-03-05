@@ -60,4 +60,9 @@ public class ScalingSummary {
     public boolean isScaledUp() {
         return newParallelism > currentParallelism;
     }
+
+    @JsonIgnore
+    public boolean isScaledDown() {
+        return newParallelism < currentParallelism;
+    }
 }

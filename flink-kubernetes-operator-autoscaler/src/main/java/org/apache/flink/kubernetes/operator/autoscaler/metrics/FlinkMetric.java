@@ -19,10 +19,7 @@ package org.apache.flink.kubernetes.operator.autoscaler.metrics;
 
 import org.apache.flink.runtime.rest.messages.job.metrics.AggregatedMetric;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -32,6 +29,8 @@ import java.util.stream.Collectors;
  */
 public enum FlinkMetric {
     BUSY_TIME_PER_SEC(s -> s.equals("busyTimeMsPerSecond")),
+    BACKPRESSURE_TIME_PER_SEC(s -> s.equals("busyTimeMsPerSecond")),
+    IDLE_TIME_PER_SEC(s -> s.equals("busyTimeMsPerSecond")),
     NUM_RECORDS_IN_PER_SEC(s -> s.equals("numRecordsInPerSecond")),
     NUM_RECORDS_OUT_PER_SEC(s -> s.equals("numRecordsOutPerSecond")),
     SOURCE_TASK_NUM_RECORDS_OUT_PER_SEC(
@@ -43,7 +42,30 @@ public enum FlinkMetric {
     ROCKS_DB_BLOCK_CACHE_MISS(s -> s.endsWith(".rocksdb_block_cache_miss")),
     ROCKS_DB_BLOCK_CACHE_USAGE(s -> s.endsWith(".rocksdb_block-cache-usage")),
     ROCKS_DB_ESTIMATE_NUM_KEYS(s -> s.endsWith(".rocksdb_estimate-num-keys")),
-    ROCKS_DB_LIVE_SST_FILES_SIZE(s -> s.endsWith(".rocksdb_live-sst-files-size"));
+    ROCKS_DB_LIVE_SST_FILES_SIZE(s -> s.endsWith(".rocksdb_live-sst-files-size")),
+    // STATE GET LATENCY
+    LIST_STATE_GET_MEAN_LATENCY(s -> s.endsWith(".listStateGetLatency_mean")),
+    MAP_STATE_GET_MEAN_LATENCY(s -> s.endsWith(".mapStateGetLatency_mean")),
+    VALUE_STATE_GET_MEAN_LATENCY(s -> s.endsWith(".valueStateGetLatency_mean")),
+    AGGREGATE_STATE_GET_MEAN_LATENCY(s -> s.endsWith(".aggregateStateGetLatency_mean")),
+    REDUCING_STATE_GET_MEAN_LATENCY(s -> s.endsWith(".reducingStateGetLatency_mean")),
+    LIST_STATE_GET_COUNT(s -> false),
+    MAP_STATE_GET_COUNT(s -> false),
+    VALUE_STATE_GET_COUNT(s -> false),
+    AGGREGATE_STATE_GET_COUNT(s -> false),
+    REDUCING_STATE_GET_COUNT(s -> false),
+    // STATE PUT LATENCY
+    LIST_STATE_ADD_MEAN_LATENCY(s -> s.endsWith(".listStateAddLatency_mean")),
+    MAP_STATE_PUT_MEAN_LATENCY(s -> s.endsWith(".mapStatPuttLatency_mean")),
+    VALUE_STATE_UPDATE_MEAN_LATENCY(s -> s.endsWith(".valueStateUpdateLatency_mean")),
+    AGGREGATE_STATE_ADD_MEAN_LATENCY(s -> s.endsWith(".aggregateStateAddLatency_mean")),
+    REDUCING_STATE_ADD_MEAN_LATENCY(s -> s.endsWith(".reducingStateAddLatency_mean")),
+    LIST_STATE_ADD_COUNT(s -> false),
+    MAP_STATE_PUT_COUNT(s -> false),
+    VALUE_STATE_UPDATE_COUNT(s -> false),
+    AGGREGATE_STATE_ADD_COUNT(s -> false),
+    REDUCING_STATE_ADD_COUNT(s -> false),
+    ;
 
     public static final Map<FlinkMetric, AggregatedMetric> FINISHED_METRICS =
             Map.ofEntries(
@@ -52,13 +74,37 @@ public enum FlinkMetric {
                     Map.entry(FlinkMetric.NUM_RECORDS_IN_PER_SEC, zero()),
                     Map.entry(FlinkMetric.NUM_RECORDS_OUT_PER_SEC, zero()),
                     Map.entry(FlinkMetric.SOURCE_TASK_NUM_RECORDS_IN_PER_SEC, zero()),
-                    Map.entry(FlinkMetric.SOURCE_TASK_NUM_RECORDS_OUT_PER_SEC, zero()),
-                    Map.entry(FlinkMetric.ROCKS_DB_BLOCK_CACHE_HIT, zero()),
-                    Map.entry(FlinkMetric.ROCKS_DB_BLOCK_CACHE_MISS, zero()),
-                    Map.entry(FlinkMetric.ROCKS_DB_BLOCK_CACHE_USAGE, zero()),
-                    Map.entry(FlinkMetric.ROCKS_DB_ESTIMATE_NUM_KEYS, zero()),
-                    Map.entry(FlinkMetric.ROCKS_DB_LIVE_SST_FILES_SIZE, zero())
+                    Map.entry(FlinkMetric.SOURCE_TASK_NUM_RECORDS_OUT_PER_SEC, zero())
             );
+
+    public static final Set<FlinkMetric> JUSTIN_METRICS =
+            Set.of(
+                    FlinkMetric.ROCKS_DB_BLOCK_CACHE_HIT,
+                    FlinkMetric.ROCKS_DB_BLOCK_CACHE_MISS,
+                    FlinkMetric.ROCKS_DB_BLOCK_CACHE_USAGE,
+                    FlinkMetric.ROCKS_DB_ESTIMATE_NUM_KEYS,
+                    FlinkMetric.ROCKS_DB_LIVE_SST_FILES_SIZE,
+                    FlinkMetric.LIST_STATE_GET_MEAN_LATENCY,
+                    FlinkMetric.MAP_STATE_GET_MEAN_LATENCY,
+                    FlinkMetric.VALUE_STATE_GET_MEAN_LATENCY,
+                    FlinkMetric.AGGREGATE_STATE_GET_MEAN_LATENCY,
+                    FlinkMetric.REDUCING_STATE_GET_MEAN_LATENCY,
+                    FlinkMetric.LIST_STATE_ADD_MEAN_LATENCY,
+                    FlinkMetric.MAP_STATE_PUT_MEAN_LATENCY,
+                    FlinkMetric.VALUE_STATE_UPDATE_MEAN_LATENCY,
+                    FlinkMetric.AGGREGATE_STATE_ADD_MEAN_LATENCY,
+                    FlinkMetric.REDUCING_STATE_ADD_MEAN_LATENCY,
+                    FlinkMetric.LIST_STATE_GET_COUNT,
+                    FlinkMetric.MAP_STATE_GET_COUNT,
+                    FlinkMetric.VALUE_STATE_GET_COUNT,
+                    FlinkMetric.AGGREGATE_STATE_GET_COUNT,
+                    FlinkMetric.REDUCING_STATE_GET_COUNT,
+                    FlinkMetric.LIST_STATE_ADD_COUNT,
+                    FlinkMetric.MAP_STATE_PUT_COUNT,
+                    FlinkMetric.VALUE_STATE_UPDATE_COUNT,
+                    FlinkMetric.AGGREGATE_STATE_ADD_COUNT,
+                    FlinkMetric.REDUCING_STATE_ADD_COUNT);
+
     public final Predicate<String> predicate;
 
     FlinkMetric(Predicate<String> predicate) {

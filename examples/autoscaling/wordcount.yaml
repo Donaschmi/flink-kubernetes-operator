@@ -21,28 +21,42 @@ kind: FlinkDeployment
 metadata:
   name: flink
 spec:
-  image: donaschmitz/justin:0.8
+  image: donaschmitz/justin:1.8
   flinkVersion: v1_18
   flinkConfiguration:
-    kubernetes.operator.job.autoscaler.enabled: "true"
-    kubernetes.operator.job.autoscaler.justin.enabled: "false"
-    kubernetes.operator.job.autoscaler.stabilization.interval: "1m"
-    kubernetes.operator.job.autoscaler.metrics.window: "2m"
-    pipeline.max-parallelism: "24"
+    kubernetes.operator.job.autoscaler.enabled: "false"
+    kubernetes.operator.job.autoscaler.justin.enabled: "true"
+    kubernetes.operator.justin.enabled: "true"
+    kubernetes.operator.job.autoscaler.scaling-policy: "basic"
+    kubernetes.operator.job.autoscaler.rocksdb-threshold.upper: "0.95"
+    kubernetes.operator.job.autoscaler.rocksdb-threshold.lower: "0.8"
+    kubernetes.operator.job.autoscaler.stabilization.interval: "5m"
+    kubernetes.operator.job.autoscaler.metrics.window: "5m"
+    kubernetes.operator.job.autoscaler.target.utilization: "0.7"
+    kubernetes.operator.job.autoscaler.target.utilization.boundary: "0.4"
+    kubernetes.operator.job.autoscaler.taskmanager-memory: "4"
+
+    pipeline.max-parallelism: "256"
     taskmanager.numberOfTaskSlots: "4"
-    state.savepoints.dir: file:///tmp/savepoints
-    state.checkpoints.dir: file:///tmp/checkpoints
     high-availability.type: kubernetes
+    #high-availability.storageDir: s3://flink/ha
     high-availability.storageDir: file:///tmp/ha
-    execution.checkpointing.interval: "1m"
+    execution.checkpointing.interval: "10m"
     jobmanager.scheduler: adaptive
-    kubernetes.operator.job.autoscaler.target.utilization.boundary: "0.1"
     metrics.reporters: prom
     metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
     #metrics.reporter.prom.port: 9250-9260
     web.submit.enable: "true"
     web.cancel.enable: "true"
     state.backend: rocksdb
+    kubernetes.operator.prom.endpoint: "http://prom-kube-prometheus-stack-prometheus.manager:9090/api/v1/query"
+
+    s3.endpoint: "http://minio.manager:9000"
+    s3.path.style.access: "true"
+    s3.access-key: "root"
+    s3.secret-key: "rootroot"
+    state.checkpoints.dir: s3://flink/flink-checkpoints
+    state.backend.incremental: "true"
 
     state.backend.rocksdb.use-direct-reads: "true"
     state.backend.rocksdb.use-direct-writes: "true"
@@ -80,6 +94,7 @@ spec:
     state.backend.rocksdb.metrics.total-sst-files-size: "true"
 
     state.backend.latency-track.keyed-state-enabled: "true"
+    #state.backend.latency-track.sample-interval: "10"
 
   serviceAccount: flink
   podTemplate:
@@ -111,18 +126,19 @@ spec:
       metadata:
         name: job-manager-pod-template
       spec:
+        # restartPolicy: Never
         initContainers:
           # Sample init container for fetching remote artifacts
           - name: busybox
-            image: busybox:1.35.0
+            image: busybox:1.36.1
             volumeMounts:
               - mountPath: /opt/flink/downloads
                 name: downloads
             command:
               - /bin/sh
               - -c
-              - "wget -O /opt/flink/downloads/job.jar \
-                https://forge.uclouvain.be/DonatienSchmitz/justin/-/raw/main/WordCount.jar"
+              - "wget --no-check-certificate -O /opt/flink/downloads/job.jar \
+                https://forge.uclouvain.be/DonatienSchmitz/justin/-/raw/main/micro/WordCount.jar"
   taskManager:
     resource:
       memory: "4096m"
@@ -135,7 +151,16 @@ spec:
   job:
     jarURI: local:///opt/flink/downloads/job.jar
     parallelism: 1
-    #upgradeMode: last-state
+    upgradeMode: last-state
+    args:
+      - "--elementsPerSecond"
+      - "30"
+      - "--keySize"
+      - "6"
+      - "--keysPerWord"
+      - "1000"
+      - "--changingRateInterval"
+      - "100000000"
 
   logConfiguration:
     "log4j-console.properties": |
@@ -162,3 +187,10 @@ spec:
       logger.zookeeper.level = INFO
       logger.netty.name = org.apache.flink.shaded.akka.org.jboss.netty.channel.DefaultChannelPipeline
       logger.netty.level = OFF
+
+      log4j.logger.org.apache.http.wire = OFF
+      log4j.logger.org.apache.http.headers = OFF
+      logger.http.name = org.apache.http
+      logger.http.level = OFF
+      logger.aws.name = com.amazonaws
+      logger.aws.level = OFF

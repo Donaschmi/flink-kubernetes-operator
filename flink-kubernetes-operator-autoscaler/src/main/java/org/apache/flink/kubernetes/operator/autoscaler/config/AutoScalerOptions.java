@@ -175,4 +175,20 @@ public class AutoScalerOptions {
                     .defaultValues()
                     .withDescription(
                             "A (semicolon-separated) list of vertex ids in hexstring for which to disable scaling. Caution: For non-sink vertices this will still scale their downstream operators until https://issues.apache.org/jira/browse/FLINK-31215 is implemented.");
+
+    public static final ConfigOption<String> SCALING_POLICY =
+            autoScalerConfig("scaling-policy")
+                    .stringType().defaultValue("default");
+
+    public static final ConfigOption<Double> ROCKSDB_CACHE_HIT_RATE_UPPER_THRESHOLD =
+            autoScalerConfig("rocksdb-threshold.upper")
+                    .doubleType().defaultValue(0.9);
+
+    public static final ConfigOption<Double> ROCKSDB_CACHE_HIT_RATE_LOWER_THRESHOLD =
+            autoScalerConfig("rocksdb-threshold.lower")
+                    .doubleType().defaultValue(0.7);
+
+    public static final ConfigOption<Integer> TASKMANAGER_MEMORY =
+            autoScalerConfig("taskmanager-memory")
+                    .intType().defaultValue(4);
 }

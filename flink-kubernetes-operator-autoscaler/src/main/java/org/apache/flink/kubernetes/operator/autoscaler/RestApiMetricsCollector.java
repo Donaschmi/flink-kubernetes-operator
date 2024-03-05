@@ -17,6 +17,8 @@
 
 package org.apache.flink.kubernetes.operator.autoscaler;
 
+import lombok.SneakyThrows;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.kubernetes.operator.api.AbstractFlinkResource;
@@ -29,9 +31,6 @@ import org.apache.flink.runtime.rest.messages.JobVertexIdPathParameter;
 import org.apache.flink.runtime.rest.messages.job.metrics.AggregatedMetric;
 import org.apache.flink.runtime.rest.messages.job.metrics.AggregatedSubtaskMetricsHeaders;
 import org.apache.flink.runtime.rest.messages.job.metrics.AggregatedSubtaskMetricsParameters;
-
-import lombok.SneakyThrows;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,13 +48,21 @@ public class RestApiMetricsCollector extends ScalingMetricCollector {
             Configuration conf,
             Map<JobVertexID, Map<String, FlinkMetric>> filteredVertexMetricNames) {
 
-        return filteredVertexMetricNames.entrySet().stream()
-                .collect(
-                        Collectors.toMap(
-                                Map.Entry::getKey,
-                                e ->
-                                        queryAggregatedVertexMetrics(
-                                                flinkService, cr, conf, e.getKey(), e.getValue())));
+        Map<JobVertexID, Map<FlinkMetric, AggregatedMetric>> latencyTracking =
+                PrometheusMetricsCollector.queryAllAggregatedMetrics(conf, filteredVertexMetricNames);
+
+        Map<JobVertexID, Map<FlinkMetric, AggregatedMetric>> aggregatedMetrics =
+                filteredVertexMetricNames.entrySet().stream()
+                        .collect(
+                                Collectors.toMap(
+                                        Map.Entry::getKey,
+                                        e ->
+                                                queryAggregatedVertexMetrics(
+                                                        flinkService, cr, conf, e.getKey(), e.getValue())));
+        for (JobVertexID id : aggregatedMetrics.keySet()) {
+            aggregatedMetrics.get(id).putAll(latencyTracking.get(id));
+        }
+        return aggregatedMetrics;
     }
 
     @SneakyThrows

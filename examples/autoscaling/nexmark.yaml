@@ -24,18 +24,22 @@ spec:
   image: donaschmitz/justin:1.8
   flinkVersion: v1_18
   flinkConfiguration:
-    kubernetes.operator.job.autoscaler.enabled: "true"
+    kubernetes.operator.job.autoscaler.enabled: "false"
     kubernetes.operator.job.autoscaler.justin.enabled: "true"
     kubernetes.operator.justin.enabled: "true"
-    kubernetes.operator.job.autoscaler.stabilization.interval: "5m"
-    kubernetes.operator.job.autoscaler.metrics.window: "5m"
-    kubernetes.operator.job.autoscaler.target.utilization: "0.5"
-    kubernetes.operator.job.autoscaler.target.utilization.boundary: "0.10"
-    pipeline.max-parallelism: "200"
+    kubernetes.operator.job.autoscaler.scaling-policy: "basic"
+    kubernetes.operator.job.autoscaler.rocksdb-threshold.upper: "0.95"
+    kubernetes.operator.job.autoscaler.rocksdb-threshold.lower: "0.8"
+    kubernetes.operator.job.autoscaler.stabilization.interval: "2m"
+    kubernetes.operator.job.autoscaler.metrics.window: "2m"
+    kubernetes.operator.job.autoscaler.target.utilization: "0.7"
+    kubernetes.operator.job.autoscaler.target.utilization.boundary: "0.2"
+    kubernetes.operator.job.autoscaler.taskmanager-memory: "4"
+    pipeline.max-parallelism: "256"
     taskmanager.numberOfTaskSlots: "4"
     high-availability.type: kubernetes
     high-availability.storageDir: file:///tmp/ha
-    execution.checkpointing.interval: "10000m"
+    execution.checkpointing.interval: "30m"
     jobmanager.scheduler: adaptive
     metrics.reporters: prom
     metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
@@ -43,6 +47,7 @@ spec:
     web.submit.enable: "true"
     web.cancel.enable: "true"
     state.backend: rocksdb
+    kubernetes.operator.prom.endpoint: "http://prom-kube-prometheus-stack-prometheus.manager:9090/api/v1/query"
 
     s3.endpoint: "http://minio.manager:9000"
     s3.path.style.access: "true"
@@ -122,8 +127,8 @@ spec:
         # restartPolicy: Never
         initContainers:
           # Sample init container for fetching remote artifacts
-          - name: busybox
-            image: busybox:1.35.0
+          - name: busyboxslac
+            image: busybox:1.36.1
             volumeMounts:
               - mountPath: /opt/flink/downloads
                 name: downloads
@@ -151,21 +156,25 @@ spec:
       - "--disabledOperatorChaining"
       - "false"
       - "--auction-srcRate"
-      - "7500"
+      - "20000"
       - "--person-srcRate"
-      - "9000"
+      - "12000"
       - "--p-auction-source"
-      - "2"
+      - "1"
       - "--stateless"
       - "false"
       - "--fixedRate"
       - "false"
       - "--changingRateInterval"
-      - "900000"
+      - "6000000"
       - "--changingRateRatio"
-      - "0.65"
+      - "0.7"
       - "--changingRateSteps"
-      - "5"
+      - "1"
+      - "--window-size"
+      - "10"
+      - "--stateIncrease"
+      - "100"
 
   logConfiguration:
     "log4j-console.properties": |

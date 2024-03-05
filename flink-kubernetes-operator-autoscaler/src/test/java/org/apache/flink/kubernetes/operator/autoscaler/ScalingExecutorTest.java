@@ -27,6 +27,8 @@ import org.apache.flink.kubernetes.operator.api.FlinkDeployment;
 import org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions;
 import org.apache.flink.kubernetes.operator.autoscaler.metrics.EvaluatedScalingMetric;
 import org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric;
+import org.apache.flink.kubernetes.operator.autoscaler.policies.BasicHybridPolicy;
+import org.apache.flink.kubernetes.operator.autoscaler.policies.Policy;
 import org.apache.flink.kubernetes.operator.utils.EventCollector;
 import org.apache.flink.kubernetes.operator.utils.EventRecorder;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
@@ -43,6 +45,7 @@ import java.util.stream.Collectors;
 
 import static org.apache.flink.kubernetes.operator.autoscaler.AutoscalerTestUtils.getOrCreateInfo;
 import static org.apache.flink.kubernetes.operator.autoscaler.ScalingExecutor.*;
+import static org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions.ROCKSDB_CACHE_HIT_RATE_LOWER_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Test for scaling execution logic. */
@@ -247,5 +250,42 @@ public class ScalingExecutorTest {
                 JobVertexID.fromHexString("a1da5206c43e257b348fd160bf2d929c"), defaultSummary);
         System.out.println(getVertexResourceProfileOverrides(evaluatedMetrics, summaries));
         assertTrue(true);
+    }
+
+    @Test
+    public void testHybridScalingPolicy() {
+        Map<JobVertexID, Map<ScalingMetric, EvaluatedScalingMetric>> evaluatedMetrics =
+                Map.of(JobVertexID.fromHexString("365ccfea623eaebf17f36c5a0cdc4ddc"), Map.of(),
+                        JobVertexID.fromHexString("ebca99d2ba186d39f4b704d5595984ad"), Map.of(
+                                ScalingMetric.ROCKS_DB_BLOCK_CACHE_HIT_RATE,
+                                new EvaluatedScalingMetric(1.0, 0.6)
+                        ),
+                        JobVertexID.fromHexString("7d808a38215a2eb5db693f4b503369de"), Map.of(),
+                        JobVertexID.fromHexString("a1da5206c43e257b348fd160bf2d929c"), Map.of());
+        Map<JobVertexID, ScalingSummary> summaries;
+        ScalingSummary defaultSummary = new ScalingSummary(1, 1, null);
+        ScalingSummary scaleoutSummary = new ScalingSummary(1, 2, null);
+        summaries = Map.of(JobVertexID.fromHexString("365ccfea623eaebf17f36c5a0cdc4ddc"), defaultSummary,
+                JobVertexID.fromHexString("ebca99d2ba186d39f4b704d5595984ad"), scaleoutSummary,
+                JobVertexID.fromHexString("7d808a38215a2eb5db693f4b503369de"), scaleoutSummary,
+                JobVertexID.fromHexString("a1da5206c43e257b348fd160bf2d929c"), defaultSummary);
+        System.out.println(evaluatedMetrics);
+        Configuration conf = new Configuration();
+        conf.setString(AutoScalerOptions.SCALING_POLICY, "basic-hybrid");
+        conf.setDouble(ROCKSDB_CACHE_HIT_RATE_LOWER_THRESHOLD, 0.5);
+        Policy policy = Policy.getInstance(conf);
+        assertTrue(policy instanceof BasicHybridPolicy);
+
+        ScalingOverrides scalingOverrides = policy.scaleDecision(null, evaluatedMetrics, summaries, conf);
+        System.out.println(scalingOverrides.getParallelismOverrides());
+        System.out.println(scalingOverrides.getResourceProfileOverrides());
+
+        scalingOverrides = policy.scaleDecision(null, evaluatedMetrics, summaries, conf);
+        System.out.println(scalingOverrides.getParallelismOverrides());
+        System.out.println(scalingOverrides.getResourceProfileOverrides());
+
+        scalingOverrides = policy.scaleDecision(null, evaluatedMetrics, summaries, conf);
+        System.out.println(scalingOverrides.getParallelismOverrides());
+        System.out.println(scalingOverrides.getResourceProfileOverrides());
     }
 }

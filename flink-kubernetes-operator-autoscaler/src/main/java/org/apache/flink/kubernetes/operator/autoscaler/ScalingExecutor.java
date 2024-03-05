@@ -18,11 +18,13 @@
 package org.apache.flink.kubernetes.operator.autoscaler;
 
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.api.common.JobID;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.kubernetes.operator.api.AbstractFlinkResource;
 import org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions;
 import org.apache.flink.kubernetes.operator.autoscaler.metrics.EvaluatedScalingMetric;
 import org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric;
+import org.apache.flink.kubernetes.operator.autoscaler.policies.Policy;
 import org.apache.flink.kubernetes.operator.utils.EventRecorder;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobgraph.justin.ResourceProfile;
@@ -38,7 +40,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.SortedMap;
 
-import static org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions.JUSTIN_ENABLED;
 import static org.apache.flink.kubernetes.operator.autoscaler.config.AutoScalerOptions.SCALING_ENABLED;
 import static org.apache.flink.kubernetes.operator.autoscaler.metrics.ScalingMetric.*;
 
@@ -165,6 +166,7 @@ public class ScalingExecutor {
         return true;
     }
 
+
     private static ResourceProfile getStatefulResourceProfile(
             Map<JobVertexID, Map<ScalingMetric, EvaluatedScalingMetric>> evaluatedMetrics,
             Map<JobVertexID, ScalingSummary> summaries) {
@@ -212,31 +214,17 @@ public class ScalingExecutor {
         return overrides;
     }
 
-    @VisibleForTesting
-    public static Map<String, String> getDefaultVertexResourceProfileOverrides(
-            Map<JobVertexID, Map<ScalingMetric, EvaluatedScalingMetric>> evaluatedMetrics,
-            Map<JobVertexID, ScalingSummary> summaries) {
-        LOG.debug("DefaultOverride");
-        var overrides = new HashMap<String, String>();
-        evaluatedMetrics.forEach(
-                (id, metrics) -> {
-                    overrides.put(
-                            id.toString(),
-                            String.valueOf(ResourceProfile.UNKNOWN));
-                });
-        return overrides;
-    }
-
     public boolean scaleResource(
             AbstractFlinkResource<?, ?> resource,
             AutoScalerInfo scalingInformation,
             Configuration conf,
             Map<JobVertexID, Map<ScalingMetric, EvaluatedScalingMetric>> evaluatedMetrics) {
-
         var now = Instant.now();
         var scalingHistory = scalingInformation.getScalingHistory(now, conf);
         var scalingSummaries =
                 computeScalingSummary(resource, conf, evaluatedMetrics, scalingHistory);
+
+        var jobID = JobID.fromHexString(resource.getStatus().getJobStatus().getJobId());
         //var justinSummaries =
         //        computeJustinSummary(resource, conf, evaluatedMetrics, null);
 
@@ -268,16 +256,15 @@ public class ScalingExecutor {
         }
 
         scalingInformation.addToScalingHistory(clock.instant(), scalingSummaries, conf);
-        scalingInformation.setCurrentOverrides(
-                getVertexParallelismOverrides(evaluatedMetrics, scalingSummaries));
-        var justinOverrides = conf.get(JUSTIN_ENABLED)
-                ? getVertexResourceProfileOverrides(evaluatedMetrics, scalingSummaries)
-                : getDefaultVertexResourceProfileOverrides(evaluatedMetrics, scalingSummaries);
-        LOG.info("Override:" + justinOverrides);
-        scalingInformation.setCurrentJustinOverrides(
-                justinOverrides);
+
+        Policy scalingPolicy = Policy.getInstance(conf);
+        ScalingOverrides scalingOverrides = scalingPolicy.scaleDecision(jobID, evaluatedMetrics, scalingSummaries, conf);
+        scalingInformation.setCurrentOverrides(scalingOverrides.getParallelismOverrides());
+        scalingInformation.setCurrentJustinOverrides(scalingOverrides.getResourceProfileOverrides());
+
         return true;
     }
+
 
     private Map<JobVertexID, ScalingSummary> computeScalingSummary(
             AbstractFlinkResource<?, ?> resource,

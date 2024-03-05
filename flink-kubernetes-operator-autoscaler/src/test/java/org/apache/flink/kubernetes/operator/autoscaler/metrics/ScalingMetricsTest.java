@@ -23,14 +23,9 @@ import org.apache.flink.kubernetes.operator.autoscaler.topology.JobTopology;
 import org.apache.flink.kubernetes.operator.autoscaler.topology.VertexInfo;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.rest.messages.job.metrics.AggregatedMetric;
-
 import org.junit.jupiter.api.Test;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -407,7 +402,89 @@ public class ScalingMetricsTest {
                 ScalingMetrics.computeOutputRatios(allMetrics, topology));
     }
 
+    private static AggregatedMetric aggAvg(double agg) {
+        return new AggregatedMetric("", Double.NaN, Double.NaN, agg, Double.NaN);
+    }
+
+    @Test
+    public void testRocksDBTime() {
+        Configuration conf = new Configuration();
+        conf.set(AutoScalerOptions.BUSY_TIME_AGGREGATOR, MetricAggregator.AVG);
+        Map<ScalingMetric, Double> scalingMetrics = new HashMap<>();
+        scalingMetrics.put(ScalingMetric.CURRENT_PROCESSING_RATE, 1886.6833333333334);
+        Map<FlinkMetric, AggregatedMetric> flinkMetrics = Map.of(
+                FlinkMetric.BUSY_TIME_PER_SEC,
+                aggAvg(692),
+                FlinkMetric.VALUE_STATE_GET_MEAN_LATENCY,
+                aggAvg(337435.17187500006),
+                FlinkMetric.VALUE_STATE_GET_COUNT,
+                aggAvg(18.866833333333334)
+        );
+        ScalingMetrics.computeStateLatencyMetrics(flinkMetrics, scalingMetrics, conf);
+        assertEquals(636.6333148570315, scalingMetrics.get(ScalingMetric.ABSOLUTE_ROCKSDB_BUSY_TIME));
+        assertEquals(0.9199903393887737, scalingMetrics.get(ScalingMetric.RELATIVE_ROCKSDB_BUSY_TIME));
+
+        scalingMetrics.put(ScalingMetric.CURRENT_PROCESSING_RATE, 1477.2166666666667);
+        flinkMetrics = Map.of(
+                FlinkMetric.BUSY_TIME_PER_SEC,
+                aggAvg(956),
+                FlinkMetric.VALUE_STATE_GET_MEAN_LATENCY,
+                aggAvg(370202.84374999977),
+                FlinkMetric.VALUE_STATE_GET_COUNT,
+                aggAvg(14.772166666666667),
+                FlinkMetric.VALUE_STATE_UPDATE_MEAN_LATENCY,
+                aggAvg(18550.6484375),
+                FlinkMetric.VALUE_STATE_UPDATE_COUNT,
+                aggAvg(14.772166666666667)
+        );
+        ScalingMetrics.computeStateLatencyMetrics(flinkMetrics, scalingMetrics, conf);
+        assertEquals(574.2731378842445, scalingMetrics.get(ScalingMetric.ABSOLUTE_ROCKSDB_BUSY_TIME));
+        assertEquals(0.6007041191257788, scalingMetrics.get(ScalingMetric.RELATIVE_ROCKSDB_BUSY_TIME));
+
+        scalingMetrics.put(ScalingMetric.CURRENT_PROCESSING_RATE, 1477.2166666666667);
+        flinkMetrics = Map.of(
+                FlinkMetric.BUSY_TIME_PER_SEC,
+                aggAvg(956),
+                FlinkMetric.VALUE_STATE_GET_MEAN_LATENCY,
+                aggAvg(370202.84374999977),
+                FlinkMetric.VALUE_STATE_GET_COUNT,
+                aggAvg(14.772166666666667),
+                FlinkMetric.VALUE_STATE_UPDATE_MEAN_LATENCY,
+                aggAvg(18550.6484375),
+                FlinkMetric.VALUE_STATE_UPDATE_COUNT,
+                aggAvg(14.772166666666667)
+        );
+        ScalingMetrics.computeStateLatencyMetrics(flinkMetrics, scalingMetrics, conf);
+        assertEquals(574.2731378842445, scalingMetrics.get(ScalingMetric.ABSOLUTE_ROCKSDB_BUSY_TIME));
+        assertEquals(0.6007041191257788, scalingMetrics.get(ScalingMetric.RELATIVE_ROCKSDB_BUSY_TIME));
+
+    }
+
     private static AggregatedMetric aggSum(double sum) {
         return new AggregatedMetric("", Double.NaN, Double.NaN, Double.NaN, sum);
+    }
+
+    @Test
+    public void testNanValueState() {
+        Configuration conf = new Configuration();
+        conf.set(AutoScalerOptions.BUSY_TIME_AGGREGATOR, MetricAggregator.AVG);
+        Map<ScalingMetric, Double> scalingMetrics = new HashMap<>();
+        scalingMetrics.put(ScalingMetric.CURRENT_PROCESSING_RATE, 1886.6833333333334);
+        Map<FlinkMetric, AggregatedMetric> flinkMetrics = Map.of(
+                FlinkMetric.BUSY_TIME_PER_SEC,
+                aggAvg(692),
+                FlinkMetric.VALUE_STATE_GET_MEAN_LATENCY,
+                aggSum(0),
+                FlinkMetric.VALUE_STATE_GET_COUNT,
+                aggSum(0),
+                FlinkMetric.LIST_STATE_GET_MEAN_LATENCY,
+                aggAvg(1000.0),
+                FlinkMetric.LIST_STATE_GET_COUNT,
+                aggAvg(18.866833333333334)
+        );
+        ScalingMetrics.computeStateLatencyMetrics(flinkMetrics, scalingMetrics, conf);
+        assertEquals(1.886683333333334, scalingMetrics.get(ScalingMetric.ABSOLUTE_ROCKSDB_BUSY_TIME));
+        ScalingMetrics.computeStateLatencyMetrics(flinkMetrics, scalingMetrics, conf);
+        assertEquals(1.886683333333334, scalingMetrics.get(ScalingMetric.ABSOLUTE_ROCKSDB_BUSY_TIME));
     }
 }

@@ -122,7 +122,6 @@ public class ScalingMetrics {
     }
 
     public static void computeCacheRateMetrics(
-            JobVertexID jobVertexID,
             Map<FlinkMetric, AggregatedMetric> flinkMetrics,
             Map<ScalingMetric, Double> scalingMetrics) {
 
@@ -136,6 +135,126 @@ public class ScalingMetrics {
         scalingMetrics.put(ScalingMetric.ROCKS_DB_BLOCK_CACHE_HIT, cacheHits);
         scalingMetrics.put(ScalingMetric.ROCKS_DB_BLOCK_CACHE_MISS, cacheMisses);
         scalingMetrics.put(ScalingMetric.ROCKS_DB_BLOCK_CACHE_HIT_RATE, rate);
+    }
+
+    public static void computeStateLatencyMetrics(
+            Map<FlinkMetric, AggregatedMetric> flinkMetrics,
+            Map<ScalingMetric, Double> scalingMetrics,
+            Configuration conf) {
+        var busyTimeAggregator = conf.get(AutoScalerOptions.BUSY_TIME_AGGREGATOR);
+        var busyTimeMsPerSecond =
+                busyTimeAggregator.get(flinkMetrics.get(FlinkMetric.BUSY_TIME_PER_SEC));
+        var numRecordsInPerSecond = scalingMetrics.get(ScalingMetric.CURRENT_PROCESSING_RATE);
+
+        if (flinkMetrics.keySet().stream().anyMatch(flinkMetric -> flinkMetric.toString().contains("VALUE_STATE"))) {
+            var meanGetLatency = getAverage(flinkMetrics, FlinkMetric.VALUE_STATE_GET_MEAN_LATENCY);
+            var countGetLatency = getAverage(flinkMetrics, FlinkMetric.VALUE_STATE_GET_COUNT);
+            var meanPutLatency = getAverage(flinkMetrics, FlinkMetric.VALUE_STATE_UPDATE_MEAN_LATENCY);
+            var countPutLatency = getAverage(flinkMetrics, FlinkMetric.VALUE_STATE_UPDATE_COUNT);
+            if (!Double.isNaN(countGetLatency) || !Double.isNaN(countPutLatency)) {
+                scalingMetrics.put(ScalingMetric.VALUE_STATE_GET_MEAN_LATENCY, meanGetLatency);
+                scalingMetrics.put(ScalingMetric.VALUE_STATE_GET_COUNT, countGetLatency);
+                scalingMetrics.put(ScalingMetric.VALUE_STATE_UPDATE_MEAN_LATENCY, meanPutLatency);
+                scalingMetrics.put(ScalingMetric.VALUE_STATE_UPDATE_COUNT, countPutLatency);
+                var absoluteBusyTime = getAbsoluteBusyTime(meanGetLatency, countGetLatency, meanPutLatency, countPutLatency, numRecordsInPerSecond);
+                scalingMetrics.put(ScalingMetric.ABSOLUTE_ROCKSDB_BUSY_TIME, absoluteBusyTime);
+                scalingMetrics.put(ScalingMetric.RELATIVE_ROCKSDB_BUSY_TIME, getRelativeBusyTime(absoluteBusyTime, busyTimeMsPerSecond));
+                return;
+            }
+        }
+        if (flinkMetrics.keySet().stream().anyMatch(flinkMetric -> flinkMetric.toString().contains("LIST_STATE"))) {
+            var meanGetLatency = getAverage(flinkMetrics, FlinkMetric.LIST_STATE_GET_MEAN_LATENCY);
+            var countGetLatency = getAverage(flinkMetrics, FlinkMetric.LIST_STATE_GET_COUNT);
+            var meanPutLatency = getAverage(flinkMetrics, FlinkMetric.LIST_STATE_ADD_MEAN_LATENCY);
+            var countPutLatency = getAverage(flinkMetrics, FlinkMetric.LIST_STATE_ADD_COUNT);
+            if (!Double.isNaN(countGetLatency) || !Double.isNaN(countPutLatency)) {
+                scalingMetrics.put(ScalingMetric.LIST_STATE_GET_MEAN_LATENCY, meanGetLatency);
+                scalingMetrics.put(ScalingMetric.LIST_STATE_GET_COUNT, countGetLatency);
+                scalingMetrics.put(ScalingMetric.LIST_STATE_ADD_MEAN_LATENCY, meanPutLatency);
+                scalingMetrics.put(ScalingMetric.LIST_STATE_ADD_COUNT, countPutLatency);
+                var absoluteBusyTime = getAbsoluteBusyTime(meanGetLatency, countGetLatency, meanPutLatency, countPutLatency, numRecordsInPerSecond);
+                scalingMetrics.put(ScalingMetric.ABSOLUTE_ROCKSDB_BUSY_TIME, absoluteBusyTime);
+                scalingMetrics.put(ScalingMetric.RELATIVE_ROCKSDB_BUSY_TIME, getRelativeBusyTime(absoluteBusyTime, busyTimeMsPerSecond));
+                return;
+            }
+        }
+        if (flinkMetrics.keySet().stream().anyMatch(flinkMetric -> flinkMetric.toString().contains("MAP_STATE"))) {
+            var meanGetLatency = getAverage(flinkMetrics, FlinkMetric.MAP_STATE_GET_MEAN_LATENCY);
+            var countGetLatency = getAverage(flinkMetrics, FlinkMetric.MAP_STATE_GET_COUNT);
+            var meanPutLatency = getAverage(flinkMetrics, FlinkMetric.MAP_STATE_PUT_MEAN_LATENCY);
+            var countPutLatency = getAverage(flinkMetrics, FlinkMetric.MAP_STATE_PUT_COUNT);
+            if (!Double.isNaN(countGetLatency) || !Double.isNaN(countPutLatency)) {
+                scalingMetrics.put(ScalingMetric.MAP_STATE_GET_MEAN_LATENCY, meanGetLatency);
+                scalingMetrics.put(ScalingMetric.MAP_STATE_GET_COUNT, countGetLatency);
+                scalingMetrics.put(ScalingMetric.MAP_STATE_PUT_MEAN_LATENCY, meanPutLatency);
+                scalingMetrics.put(ScalingMetric.MAP_STATE_PUT_COUNT, countPutLatency);
+                var absoluteBusyTime = getAbsoluteBusyTime(meanGetLatency, countGetLatency, meanPutLatency, countPutLatency, numRecordsInPerSecond);
+                scalingMetrics.put(ScalingMetric.ABSOLUTE_ROCKSDB_BUSY_TIME, absoluteBusyTime);
+                scalingMetrics.put(ScalingMetric.RELATIVE_ROCKSDB_BUSY_TIME, getRelativeBusyTime(absoluteBusyTime, busyTimeMsPerSecond));
+                return;
+            }
+        }
+        if (flinkMetrics.keySet().stream().anyMatch(flinkMetric -> flinkMetric.toString().contains("AGGREGATE_STATE"))) {
+            var meanGetLatency = getAverage(flinkMetrics, FlinkMetric.AGGREGATE_STATE_GET_MEAN_LATENCY);
+            var countGetLatency = getAverage(flinkMetrics, FlinkMetric.AGGREGATE_STATE_GET_COUNT);
+            var meanPutLatency = getAverage(flinkMetrics, FlinkMetric.AGGREGATE_STATE_ADD_MEAN_LATENCY);
+            var countPutLatency = getAverage(flinkMetrics, FlinkMetric.AGGREGATE_STATE_ADD_COUNT);
+            if (!Double.isNaN(countGetLatency) || !Double.isNaN(countPutLatency)) {
+                scalingMetrics.put(ScalingMetric.AGGREGATE_STATE_GET_MEAN_LATENCY, meanGetLatency);
+                scalingMetrics.put(ScalingMetric.AGGREGATE_STATE_GET_COUNT, countGetLatency);
+                scalingMetrics.put(ScalingMetric.AGGREGATE_STATE_ADD_MEAN_LATENCY, meanPutLatency);
+                scalingMetrics.put(ScalingMetric.AGGREGATE_STATE_ADD_COUNT, countPutLatency);
+                var absoluteBusyTime = getAbsoluteBusyTime(meanGetLatency, countGetLatency, meanPutLatency, countPutLatency, numRecordsInPerSecond);
+                scalingMetrics.put(ScalingMetric.ABSOLUTE_ROCKSDB_BUSY_TIME, absoluteBusyTime);
+                scalingMetrics.put(ScalingMetric.RELATIVE_ROCKSDB_BUSY_TIME, getRelativeBusyTime(absoluteBusyTime, busyTimeMsPerSecond));
+                return;
+            }
+        }
+        if (flinkMetrics.keySet().stream().anyMatch(flinkMetric -> flinkMetric.toString().contains("REDUCING_STATE"))) {
+            var meanGetLatency = getAverage(flinkMetrics, FlinkMetric.REDUCING_STATE_GET_MEAN_LATENCY);
+            var countGetLatency = getAverage(flinkMetrics, FlinkMetric.REDUCING_STATE_GET_COUNT);
+            var meanPutLatency = getAverage(flinkMetrics, FlinkMetric.REDUCING_STATE_ADD_MEAN_LATENCY);
+            var countPutLatency = getAverage(flinkMetrics, FlinkMetric.REDUCING_STATE_ADD_COUNT);
+            if (!Double.isNaN(countGetLatency) || !Double.isNaN(countPutLatency)) {
+                scalingMetrics.put(ScalingMetric.REDUCING_STATE_GET_MEAN_LATENCY, meanGetLatency);
+                scalingMetrics.put(ScalingMetric.AGGREGATE_STATE_GET_COUNT, countGetLatency);
+                scalingMetrics.put(ScalingMetric.REDUCING_STATE_ADD_MEAN_LATENCY, meanPutLatency);
+                scalingMetrics.put(ScalingMetric.REDUCING_STATE_ADD_COUNT, countPutLatency);
+                var absoluteBusyTime = getAbsoluteBusyTime(meanGetLatency, countGetLatency, meanPutLatency, countPutLatency, numRecordsInPerSecond);
+                scalingMetrics.put(ScalingMetric.ABSOLUTE_ROCKSDB_BUSY_TIME, absoluteBusyTime);
+                scalingMetrics.put(ScalingMetric.RELATIVE_ROCKSDB_BUSY_TIME, getRelativeBusyTime(absoluteBusyTime, busyTimeMsPerSecond));
+                return;
+            }
+        }
+    }
+
+    private static double getAbsoluteBusyTime(
+            double meanGetLatency,
+            double countGetLatency,
+            double meanPutLatency,
+            double countPutLatency,
+            double numRecordsInPerSecond) {
+        double totalGet = 0.0;
+        double totalPut = 0.0;
+        if (!Double.isNaN(countGetLatency)) {
+            totalGet = meanGetLatency / 1000000 * numRecordsInPerSecond * (numRecordsInPerSecond / (countGetLatency * 100));
+        }
+        if (!Double.isNaN(countPutLatency)) {
+            totalPut = meanPutLatency / 1000000 * numRecordsInPerSecond * (numRecordsInPerSecond / (countPutLatency * 100));
+        }
+        return totalGet + totalPut;
+    }
+
+    private static double getRelativeBusyTime(double absoluteBusyTime, double busyTimeMsPerSecond) {
+        return absoluteBusyTime / busyTimeMsPerSecond;
+    }
+
+    private static Double getAverage(Map<FlinkMetric, AggregatedMetric> flinkMetrics, FlinkMetric flinkMetric) {
+        var ret = flinkMetrics.get(flinkMetric);
+        if (ret != null) {
+            return ret.getAvg();
+        }
+        return Double.NaN;
     }
 
     private static double getBusyTimeMsPerSecond(

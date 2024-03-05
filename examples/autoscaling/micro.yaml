@@ -24,16 +24,19 @@ spec:
   image: donaschmitz/justin:1.8
   flinkVersion: v1_18
   flinkConfiguration:
-    kubernetes.operator.job.autoscaler.enabled: "false"
+    kubernetes.operator.job.autoscaler.enabled: "true"
     kubernetes.operator.job.autoscaler.justin.enabled: "false"
     kubernetes.operator.justin.enabled: "false"
-    kubernetes.operator.job.autoscaler.stabilization.interval: "3m"
+    kubernetes.operator.job.autoscaler.scaling-policy: "basic-hybrid"
+    kubernetes.operator.job.autoscaler.rocksdb-threshold: "0.8"
+    kubernetes.operator.job.autoscaler.stabilization.interval: "5m"
     kubernetes.operator.job.autoscaler.metrics.window: "3m"
-    kubernetes.operator.job.autoscaler.target.utilization: "0.45"
+    kubernetes.operator.job.autoscaler.target.utilization: "0.7"
     kubernetes.operator.job.autoscaler.target.utilization.boundary: "0.15"
     pipeline.max-parallelism: "200"
     taskmanager.numberOfTaskSlots: "4"
     high-availability.type: kubernetes
+    #high-availability.storageDir: s3://flink/ha
     high-availability.storageDir: file:///tmp/ha
     execution.checkpointing.interval: "10000m"
     jobmanager.scheduler: adaptive
@@ -43,12 +46,12 @@ spec:
     web.submit.enable: "true"
     web.cancel.enable: "true"
     state.backend: rocksdb
+    kubernetes.operator.prom.endpoint: "http://prometheus-kube-prometheus-prometheus.manager:9090/api/v1/query"
 
     s3.endpoint: "http://minio.manager:9000"
     s3.path.style.access: "true"
     s3.access-key: "root"
     s3.secret-key: "rootroot"
-    state.savepoints.dir: s3://flink/flink-checkpoints
     state.checkpoints.dir: s3://flink/flink-checkpoints
     state.backend.incremental: "true"
 
@@ -88,6 +91,8 @@ spec:
     state.backend.rocksdb.metrics.total-sst-files-size: "true"
 
     state.backend.latency-track.keyed-state-enabled: "true"
+    #state.backend.latency-track.sample-interval: "10"
+    state.backend.rocksdb.writebuffer.size: "256 mb"
 
   serviceAccount: flink
   podTemplate:
@@ -131,9 +136,7 @@ spec:
               - /bin/sh
               - -c
               - "wget -O /opt/flink/downloads/job.jar \
-                https://forge.uclouvain.be/DonatienSchmitz/justin/-/raw/main/nexmark/Query8.jar"
-              #- "wget -O /opt/flink/downloads/job.jar \
-              #  https://forge.uclouvain.be/DonatienSchmitz/justin/-/raw/33e0f192cbc25f0afb604dcc029495526c93307d/nexmark/Query8.jar"
+                https://forge.uclouvain.be/DonatienSchmitz/justin/-/raw/main/RocksDBStateMemoryControlTestProgram.jar"
   taskManager:
     resource:
       memory: "4096m"
@@ -148,24 +151,30 @@ spec:
     parallelism: 1
     upgradeMode: last-state
     args:
-      - "--disabledOperatorChaining"
-      - "false"
-      - "--auction-srcRate"
-      - "30000"
-      - "--person-srcRate"
-      - "18000"
-      - "--p-auction-source"
+      - "--environment.parallelism"
       - "1"
-      - "--stateless"
-      - "false"
-      - "--fixedRate"
+      - "--environment.checkpoint_interval"
+      - "600000"
+      - "--state_backend"
+      - "rocks"
+      - "--state_backend.checkpoint_directory"
+      - "s3://flink/flink-checkpoints"
+      - "--state_backend.rocks.incremental"
       - "true"
-      - "--changingRateInterval"
+      - "--sequence_generator_source.sleep_time"
+      - "-1"
+      - "--sequence_generator_source.keyspace"
+      - "1500000"
+      - "--sequence_generator_source.payload_size"
+      - "1000"
+      - "--sequence_generator_source.sleep_after_elements "
+      - "-1"
+      - "--sequence_generator_source.changing_rate_interval"
       - "900000"
-      - "--changingRateRatio"
-      - "0.5"
-      - "--changingRateSteps"
-      - "4"
+      - "--sequence_generator_source.elements_per_second"
+      - "30000"
+      - "--iterations"
+      - "0"
 
   logConfiguration:
     "log4j-console.properties": |

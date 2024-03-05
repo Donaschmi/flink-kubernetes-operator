@@ -23,9 +23,9 @@ import org.apache.flink.kubernetes.configuration.KubernetesConfigOptions;
 import org.apache.flink.kubernetes.operator.TestingFlinkService;
 import org.apache.flink.kubernetes.operator.api.FlinkDeployment;
 import org.apache.flink.kubernetes.operator.autoscaler.metrics.FlinkMetric;
+import org.apache.flink.kubernetes.operator.config.KubernetesOperatorConfigOptions;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.rest.messages.job.metrics.AggregatedMetric;
-
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -73,5 +73,37 @@ public class RestApiMetricsCollectorTest {
         AggregatedMetric pendingRecordsMetric = vertexMetrics.get(FlinkMetric.PENDING_RECORDS);
         Assertions.assertNotNull(pendingRecordsMetric);
         Assertions.assertEquals(pendingRecordsMetric.getSum(), 200);
+    }
+
+
+    @Test
+    public void testAggregatePromMetrics() {
+        var collector = new PrometheusMetricsCollector();
+
+        JobVertexID jobVertexID = JobVertexID.fromHexString("11ffd1a2f5905feab358b0af9a75fe4e");
+        Map<String, FlinkMetric> flinkMetrics =
+                Map.of(
+                        FlinkMetric.LIST_STATE_GET_COUNT.name(), FlinkMetric.LIST_STATE_GET_COUNT);
+        Map<JobVertexID, Map<String, FlinkMetric>> metrics = Map.of(jobVertexID, flinkMetrics);
+
+        FlinkDeployment cr = new FlinkDeployment();
+        cr.getStatus().getJobStatus().setJobId(new JobID().toHexString());
+
+        TestingFlinkService flinkService = new TestingFlinkService();
+
+        Configuration conf = new Configuration();
+        conf.set(KubernetesConfigOptions.CLUSTER_ID, "id");
+        conf.set(KubernetesOperatorConfigOptions.PROM_ENDPOINT, "http://localhost:9090/api/v1/query");
+
+        Map<JobVertexID, Map<FlinkMetric, AggregatedMetric>> jobVertexIDMapMap =
+                PrometheusMetricsCollector.queryAllAggregatedMetrics(conf, metrics);
+
+        System.out.println(jobVertexIDMapMap);
+
+        Assertions.assertEquals(1, jobVertexIDMapMap.size());
+        Map<FlinkMetric, AggregatedMetric> vertexMetrics = jobVertexIDMapMap.get(jobVertexID);
+        Assertions.assertNotNull(vertexMetrics);
+        AggregatedMetric pendingRecordsMetric = vertexMetrics.get(FlinkMetric.LIST_STATE_GET_COUNT);
+        Assertions.assertNotNull(pendingRecordsMetric);
     }
 }

@@ -71,6 +71,14 @@ public interface AutoScalerStateStore<KEY, Context extends JobAutoScalerContext<
 
     void removeParallelismOverrides(Context jobContext) throws Exception;
 
+    void storeResourceProfileOverrides(Context jobContext, Map<String, String> resourceProfileOverrides)
+            throws Exception;
+
+    @Nonnull
+    Map<String, String> getResourceProfileOverrides(Context jobContext) throws Exception;
+
+    void removeResourceProfileOverrides(Context jobContext) throws Exception;
+
     void storeConfigChanges(Context jobContext, ConfigChanges configChanges) throws Exception;
 
     @Nonnull

@@ -17,6 +17,7 @@
 
 package org.apache.flink.autoscaler.realizer;
 
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.autoscaler.JobAutoScalerContext;
 import org.apache.flink.autoscaler.tuning.ConfigChanges;
@@ -39,6 +40,14 @@ public interface ScalingRealizer<KEY, Context extends JobAutoScalerContext<KEY>>
      * @throws Exception Error during realize parallelism overrides.
      */
     void realizeParallelismOverrides(Context context, Map<String, String> parallelismOverrides)
+            throws Exception;
+
+    /**
+     * Update job's parallelism to parallelismOverrides.
+     *
+     * @throws Exception Error during realize parallelism overrides.
+     */
+    void realizeParallelismOverrides(Context context, Map<String, String> parallelismOverrides, Map<String, String> justinOverrides)
             throws Exception;
 
     /**

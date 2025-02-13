@@ -51,6 +51,11 @@ public enum ScalingMetric {
     /** Recommended job vertex parallelism. */
     RECOMMENDED_PARALLELISM(false),
 
+    /**
+     * Recommended job vertex parallelism.
+     */
+    RECOMMENDED_RESOURCE_PROFILE(false),
+
     /** Job vertex max parallelism. */
     MAX_PARALLELISM(false),
 
@@ -90,7 +95,21 @@ public enum ScalingMetric {
     /** Percentage of max heap used (between 0 and 1). */
     HEAP_MAX_USAGE_RATIO(true),
 
-    NUM_TASK_SLOTS_USED(false);
+    NUM_TASK_SLOTS_USED(false),
+
+    ROCKS_DB_BLOCK_CACHE_HIT_RATE(true),
+
+    ROCKS_DB_BLOCK_CACHE_HIT(true),
+
+    ROCKS_DB_BLOCK_CACHE_MISS(true),
+
+    ROCKS_DB_BLOCK_CACHE_USAGE(true),
+
+    ROCKS_DB_ESTIMATE_NUM_KEYS(true),
+
+    ROCKS_DB_LIVE_SST_FILES_SIZE(true),
+
+    LIST_STATE_GET_MEAN_LATENCY(true);
 
     @Getter private final boolean calculateAverage;
 
@@ -104,11 +123,19 @@ public enum ScalingMetric {
                     LAG,
                     PARALLELISM,
                     RECOMMENDED_PARALLELISM,
+                    RECOMMENDED_RESOURCE_PROFILE,
                     MAX_PARALLELISM,
                     NUM_SOURCE_PARTITIONS,
                     SCALE_UP_RATE_THRESHOLD,
                     SCALE_DOWN_RATE_THRESHOLD,
-                    EXPECTED_PROCESSING_RATE);
+                    EXPECTED_PROCESSING_RATE,
+                    ROCKS_DB_BLOCK_CACHE_HIT_RATE,
+                    ROCKS_DB_BLOCK_CACHE_HIT,
+                    ROCKS_DB_BLOCK_CACHE_MISS,
+                    ROCKS_DB_BLOCK_CACHE_USAGE,
+                    ROCKS_DB_ESTIMATE_NUM_KEYS,
+                    ROCKS_DB_LIVE_SST_FILES_SIZE,
+                    LIST_STATE_GET_MEAN_LATENCY);
 
     ScalingMetric(boolean calculateAverage) {
         this.calculateAverage = calculateAverage;

@@ -24,6 +24,7 @@ import org.apache.flink.autoscaler.ScalingTracking;
 import org.apache.flink.autoscaler.metrics.CollectedMetrics;
 import org.apache.flink.autoscaler.tuning.ConfigChanges;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
+import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nonnull;
 
@@ -51,6 +52,8 @@ public class InMemoryAutoScalerStateStore<KEY, Context extends JobAutoScalerCont
 
     private final Map<KEY, Map<String, String>> parallelismOverridesStore;
 
+    private final Map<KEY, Map<String, String>> resourceProfileOverridesStore;
+
     private final Map<KEY, ConfigChanges> tmConfigOverrides;
 
     private final Map<KEY, ScalingTracking> scalingTrackingStore;
@@ -61,6 +64,7 @@ public class InMemoryAutoScalerStateStore<KEY, Context extends JobAutoScalerCont
         scalingHistoryStore = new ConcurrentHashMap<>();
         collectedMetricsStore = new ConcurrentHashMap<>();
         parallelismOverridesStore = new ConcurrentHashMap<>();
+        resourceProfileOverridesStore = new ConcurrentHashMap<>();
         scalingTrackingStore = new ConcurrentHashMap<>();
         tmConfigOverrides = new ConcurrentHashMap<>();
         delayedScaleDownStore = new ConcurrentHashMap<>();
@@ -148,6 +152,23 @@ public class InMemoryAutoScalerStateStore<KEY, Context extends JobAutoScalerCont
     @Override
     public void removeParallelismOverrides(Context jobContext) {
         parallelismOverridesStore.remove(jobContext.getJobKey());
+    }
+
+    @Override
+    public void storeResourceProfileOverrides(Context jobContext, Map<String, String> resourceProfileOverrides) throws Exception {
+        resourceProfileOverridesStore.put(jobContext.getJobKey(), resourceProfileOverrides);
+    }
+
+    @NotNull
+    @Override
+    public Map<String, String> getResourceProfileOverrides(Context jobContext) throws Exception {
+        return Optional.ofNullable(resourceProfileOverridesStore.get(jobContext.getJobKey()))
+                .orElse(new HashMap<>());
+    }
+
+    @Override
+    public void removeResourceProfileOverrides(Context jobContext) throws Exception {
+        resourceProfileOverridesStore.remove(jobContext.getJobKey());
     }
 
     @Override

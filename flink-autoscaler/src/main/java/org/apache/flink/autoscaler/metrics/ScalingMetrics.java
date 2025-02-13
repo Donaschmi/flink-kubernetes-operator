@@ -261,6 +261,25 @@ public class ScalingMetrics {
         return Math.max(0, numRecords.getSum());
     }
 
+
+
+    public static void computeCacheRateMetrics(
+            Map<FlinkMetric, AggregatedMetric> flinkMetrics,
+            Map<ScalingMetric, Double> scalingMetrics) {
+
+        double cacheHits = flinkMetrics.get(FlinkMetric.ROCKS_DB_BLOCK_CACHE_HIT).getSum();
+        double cacheMisses = flinkMetrics.get(FlinkMetric.ROCKS_DB_BLOCK_CACHE_MISS).getSum();
+
+        double rate = 0.0;
+        if (cacheHits != 0 && cacheMisses != 0) {
+            rate = cacheHits / (cacheHits + cacheMisses);
+        }
+        scalingMetrics.put(ScalingMetric.ROCKS_DB_BLOCK_CACHE_HIT, cacheHits);
+        scalingMetrics.put(ScalingMetric.ROCKS_DB_BLOCK_CACHE_MISS, cacheMisses);
+        scalingMetrics.put(ScalingMetric.ROCKS_DB_BLOCK_CACHE_HIT_RATE, rate);
+
+    }
+
     public static double roundMetric(double value) {
         double rounded = Precision.round(value, 3);
         // Never round down to 0, return original value instead

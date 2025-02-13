@@ -20,10 +20,7 @@ package org.apache.flink.kubernetes.operator.autoscaler;
 import org.apache.flink.autoscaler.realizer.ScalingRealizer;
 import org.apache.flink.autoscaler.tuning.ConfigChanges;
 import org.apache.flink.autoscaler.tuning.MemoryTuning;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.configuration.ConfigurationUtils;
-import org.apache.flink.configuration.MemorySize;
-import org.apache.flink.configuration.PipelineOptions;
+import org.apache.flink.configuration.*;
 import org.apache.flink.kubernetes.operator.api.FlinkDeployment;
 import org.apache.flink.kubernetes.operator.api.spec.Resource;
 import org.apache.flink.kubernetes.operator.config.FlinkConfigBuilder;
@@ -34,11 +31,22 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 
+import java.util.Collections;
 import java.util.Map;
 
 /** The Kubernetes implementation for applying parallelism overrides. */
 public class KubernetesScalingRealizer
         implements ScalingRealizer<ResourceID, KubernetesJobAutoScalerContext> {
+
+    public static final ConfigOption<Map<String, String>> RESOURCE_PROFILE_OVERRIDES =
+            ConfigOptions.key("pipeline.jobvertex-resourceprofile-overrides")
+                    .mapType()
+                    .defaultValue(Collections.emptyMap());
+
+    public static final ConfigOption<Map<String, String>> SCALING_CONFIGURATIONS_PERIODS =
+            ConfigOptions.key("pipeline.scaling-configurations-periods")
+                    .mapType()
+                    .defaultValue(Collections.emptyMap());
 
     private static final Logger LOG = LoggerFactory.getLogger(KubernetesScalingRealizer.class);
 
@@ -52,6 +60,21 @@ public class KubernetesScalingRealizer
                 .put(
                         PipelineOptions.PARALLELISM_OVERRIDES.key(),
                         getOverrideString(context, parallelismOverrides));
+    }
+
+    @Override
+    public void realizeParallelismOverrides(KubernetesJobAutoScalerContext context, Map<String, String> parallelismOverrides, Map<String, String> justinOverrides) {
+        LOG.debug("We are in KubernetesScalingRealizer");
+        var config = context.getResource()
+                .getSpec()
+                .getFlinkConfiguration();
+        config.put(
+                PipelineOptions.PARALLELISM_OVERRIDES.key(),
+                getOverrideString(context, parallelismOverrides));
+        config
+                .put(
+                        RESOURCE_PROFILE_OVERRIDES.key(),
+                        getOverrideString(context, justinOverrides));
     }
 
     @Override

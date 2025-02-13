@@ -27,6 +27,7 @@ import org.apache.flink.autoscaler.tuning.ConfigChanges;
 import org.apache.flink.autoscaler.utils.AutoScalerSerDeModule;
 import org.apache.flink.configuration.ConfigurationUtils;
 import org.apache.flink.kubernetes.operator.autoscaler.KubernetesJobAutoScalerContext;
+import org.apache.flink.kubernetes.operator.autoscaler.KubernetesScalingRealizer;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonInclude;
@@ -40,6 +41,7 @@ import org.apache.flink.shaded.jackson2.org.yaml.snakeyaml.LoaderOptions;
 import io.javaoperatorsdk.operator.processing.event.ResourceID;
 import lombok.SneakyThrows;
 import org.apache.commons.io.IOUtils;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,6 +75,8 @@ public class KubernetesAutoScalerStateStore
     @VisibleForTesting
     /* Be careful with changing this field name or the internal structure. Otherwise the parallelism of all autoscaled pipelines might get reset! */
     protected static final String PARALLELISM_OVERRIDES_KEY = "parallelismOverrides";
+    protected static final String RESOURCE_PROFILE_OVERRIDES_KEY = "resourceProfileOverrides";
+    protected static final String PREVIOUS_SCALING_DECISION = "previousScalingDecision";
 
     protected static final String CONFIG_OVERRIDES_KEY = "configOverrides";
 
@@ -225,6 +229,28 @@ public class KubernetesAutoScalerStateStore
     @Override
     public void removeParallelismOverrides(KubernetesJobAutoScalerContext jobContext) {
         configMapStore.removeSerializedState(jobContext, PARALLELISM_OVERRIDES_KEY);
+    }
+
+    @Override
+    public void storeResourceProfileOverrides(KubernetesJobAutoScalerContext jobContext, Map<String, String> resourceProfileOverrides) throws Exception {
+        configMapStore.putSerializedState(
+                jobContext,
+                RESOURCE_PROFILE_OVERRIDES_KEY,
+                serializeParallelismOverrides(resourceProfileOverrides));
+    }
+
+    @NotNull
+    @Override
+    public Map<String, String> getResourceProfileOverrides(KubernetesJobAutoScalerContext jobContext) throws Exception {
+        return configMapStore
+                .getSerializedState(jobContext, RESOURCE_PROFILE_OVERRIDES_KEY)
+                .map(KubernetesAutoScalerStateStore::deserializeParallelismOverrides)
+                .orElse(new HashMap<>());
+    }
+
+    @Override
+    public void removeResourceProfileOverrides(KubernetesJobAutoScalerContext jobContext) throws Exception {
+        configMapStore.removeSerializedState(jobContext, RESOURCE_PROFILE_OVERRIDES_KEY);
     }
 
     @Override

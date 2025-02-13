@@ -20,6 +20,9 @@ package org.apache.flink.kubernetes.operator.service;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.JobStatus;
+import org.apache.flink.autoscaler.ScalingExecutor;
+import org.apache.flink.autoscaler.config.AutoScalerOptions;
+import org.apache.flink.autoscaler.utils.justin.*;
 import org.apache.flink.client.cli.ApplicationDeployer;
 import org.apache.flink.client.deployment.ClusterClientFactory;
 import org.apache.flink.client.deployment.ClusterClientServiceLoader;
@@ -36,12 +39,14 @@ import org.apache.flink.kubernetes.operator.api.FlinkDeployment;
 import org.apache.flink.kubernetes.operator.api.spec.FlinkVersion;
 import org.apache.flink.kubernetes.operator.api.spec.JobSpec;
 import org.apache.flink.kubernetes.operator.artifact.ArtifactManager;
+import org.apache.flink.kubernetes.operator.autoscaler.KubernetesScalingRealizer;
 import org.apache.flink.kubernetes.operator.config.FlinkOperatorConfiguration;
 import org.apache.flink.kubernetes.operator.config.KubernetesOperatorConfigOptions;
 import org.apache.flink.kubernetes.operator.controller.FlinkResourceContext;
 import org.apache.flink.kubernetes.operator.reconciler.ReconciliationUtils;
 import org.apache.flink.kubernetes.operator.utils.EventRecorder;
 import org.apache.flink.kubernetes.utils.KubernetesUtils;
+import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.jobgraph.JobResourceRequirements;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobgraph.JobVertexResourceRequirements;
@@ -176,6 +181,11 @@ public class NativeFlinkService extends AbstractFlinkService {
         var resource = ctx.getResource();
         var observeConfig = ctx.getObserveConfig();
 
+        var justinEnabled = deployConfig.get(AutoScalerOptions.JUSTIN_ENABLED);
+
+        if (justinEnabled) {
+            return justin(ctx, deployConfig);
+        }
         if (!supportsInPlaceScaling(resource, observeConfig)) {
             return false;
         }
@@ -225,6 +235,81 @@ public class NativeFlinkService extends AbstractFlinkService {
                 LOG.info("Vertex resources requirements already match target, nothing to do...");
             } else {
                 updateVertexResources(client, resource, requirements);
+                eventRecorder.triggerEvent(
+                        resource,
+                        EventRecorder.Type.Normal,
+                        EventRecorder.Reason.Scaling,
+                        EventRecorder.Component.Job,
+                        "In-place scaling triggered",
+                        ctx.getKubernetesClient());
+            }
+            return true;
+        } catch (Throwable t) {
+            LOG.error("Error while rescaling, falling back to regular upgrade", t);
+            return false;
+        }
+    }
+
+    public boolean justin(FlinkResourceContext<?> ctx, Configuration deployConfig) {
+        LOG.debug("We are in Justin.");
+        var resource = ctx.getResource();
+        var observeConfig = ctx.getObserveConfig();
+
+        var newOverrides = deployConfig.get(PipelineOptions.PARALLELISM_OVERRIDES);
+        var previousOverrides = observeConfig.get(PipelineOptions.PARALLELISM_OVERRIDES);
+        var newRPOverrides = deployConfig.get(KubernetesScalingRealizer.RESOURCE_PROFILE_OVERRIDES);
+        var previousRPOverrides = observeConfig.get(KubernetesScalingRealizer.RESOURCE_PROFILE_OVERRIDES);
+        if (newOverrides.isEmpty() && previousOverrides.isEmpty()
+            && newRPOverrides.isEmpty() && previousRPOverrides.isEmpty()) {
+            LOG.info("No overrides defined before or after. Cannot scale in-place.");
+            return false;
+        }
+
+        try (var client = getClusterClient(observeConfig)) {
+            var requirements = new HashMap<>(getVertexResources(client, resource));
+            var newRequirements = new HashMap<JobVertexID, JustinVertexResourceRequirements>();
+            var alreadyScaled = true;
+
+            LOG.debug("Fetched Justin requirement: {}", requirements);
+            for (Map.Entry<JobVertexID, JobVertexResourceRequirements> entry :
+                    requirements.entrySet()) {
+                var jobId = entry.getKey().toString();
+                var parallelism = entry.getValue().getParallelism();
+                var overrideStr = newOverrides.get(jobId);
+                var overrideRPStr = newRPOverrides.get(jobId);
+
+                if (overrideStr != null && overrideRPStr != null) {
+                    // We set the parallelism upper bound to the target parallelism, anything higher
+                    // would defeat the purpose of scaling down
+                    int upperBound = Integer.parseInt(overrideStr);
+
+                    var newResourceProfile = parseResourceProfile(overrideRPStr);
+                    // We only change the lower bound if the new parallelism went below it. As we
+                    // cannot guarantee that new resources can be acquired, increasing the lower
+                    // bound to the target could potentially cause job failure.
+                    int lowerBound = Math.min(upperBound, parallelism.getLowerBound());
+                    var newParallelism =
+                            new JustinVertexResourceRequirements.Parallelism(lowerBound, upperBound);
+                    // If the requirements changed we mark this as scaling triggered
+                    if (!parallelism.equals(newParallelism)) {
+                        newRequirements.put(entry.getKey(),new JustinVertexResourceRequirements(newParallelism, newResourceProfile));
+                        alreadyScaled = false;
+                    }
+                } else if (previousOverrides.containsKey(jobId)) {
+                    LOG.info(
+                            "Parallelism override for {} has been removed, falling back to regular upgrade.",
+                            jobId);
+                    return false;
+                } else {
+                    // No overrides for this vertex
+                }
+            }
+            if (alreadyScaled) {
+                LOG.info("Vertex resources requirements already match target, nothing to do...");
+            } else {
+                LOG.debug("AlreadyScaled is false.");
+                updateJustinResources(client, resource, newRequirements, observeConfig);
+                ScalingExecutor.scalingTriggered(JobID.fromHexString(resource.getStatus().getJobStatus().getJobId()));
                 eventRecorder.triggerEvent(
                         resource,
                         EventRecorder.Type.Normal,
@@ -302,6 +387,80 @@ public class NativeFlinkService extends AbstractFlinkService {
 
         return currentRequirements.asJobResourceRequirements().get().getJobVertexParallelisms();
     }
+
+
+    private void updateJustinResources(
+            RestClusterClient<String> client,
+            AbstractFlinkResource<?, ?> resource,
+            Map<JobVertexID, JustinVertexResourceRequirements> newReqs,
+            Configuration conf)
+            throws Exception {
+        var jobParameters = new JobMessageParameters();
+        jobParameters.jobPathParameter.resolve(
+                JobID.fromHexString(resource.getStatus().getJobStatus().getJobId()));
+
+        var requestBody = new JustinResourceRequirementsBody(new JustinResourceRequirements(newReqs));
+
+        client.sendRequest(new JustinResourceRequirementsUpdateHeaders(), jobParameters, requestBody)
+                .get(operatorConfig.getFlinkClientTimeout().toSeconds(), TimeUnit.SECONDS);
+
+    }
+
+    public static ResourceProfile parseResourceProfile(String s) {
+        String delim = "[{}]+";
+        String[] strings = s.split(delim);
+        if (strings.length <= 0 || !strings[0].equals(ResourceProfile.class.getSimpleName())) {
+            return ResourceProfile.UNKNOWN;
+        } else if (strings.length == 2) {
+            if (strings[1].contains("UNKNOWN")) {
+                return ResourceProfile.UNKNOWN;
+            }
+            String[] profiles = strings[1].split(", ");
+            ResourceProfile.Builder resourceProfile = ResourceProfile.newBuilder()
+                    .setCpuCores(Double.parseDouble(profiles[0].split("=")[1]))
+                    .setTaskHeapMemoryMB(parseMemoryFromResourceProfile(profiles[1]))
+                    .setTaskOffHeapMemoryMB(parseMemoryFromResourceProfile(profiles[2]))
+                    .setManagedMemoryMB(parseMemoryFromResourceProfile(profiles[3]))
+                    .setNetworkMemoryMB(parseMemoryFromResourceProfile(profiles[4]));
+            return resourceProfile.build();
+
+        } else {
+            return ResourceProfile.UNKNOWN;
+        }
+    }
+
+    private static int parseMemoryFromResourceProfile(String s) {
+        String parsed = s.substring(s.indexOf("=") + 1, s.indexOf(" "));
+        if (parsed.equals("0")) {
+            return 0;
+        }
+        System.out.println(parsed);
+        int value = Integer.parseInt(parsed.split("\\.")[0]);
+        if (parsed.contains("gb")) {
+            value *= 1024;
+        } else if (parsed.contains("kb")) {
+            value /= 1024;
+        }
+        return value;
+    }
+
+    protected Map<JobVertexID, JustinVertexResourceRequirements> getJustinResources(
+            RestClusterClient<String> client, AbstractFlinkResource<?, ?> resource)
+            throws Exception {
+        var jobParameters = new JobMessageParameters();
+        jobParameters.jobPathParameter.resolve(
+                JobID.fromHexString(resource.getStatus().getJobStatus().getJobId()));
+
+        var currentRequirements =
+                client.sendRequest(
+                                new JustinResourceRequirementsHeaders(),
+                                jobParameters,
+                                EmptyRequestBody.getInstance())
+                        .get(operatorConfig.getFlinkClientTimeout().toSeconds(), TimeUnit.SECONDS);
+
+        return currentRequirements.asJustinResourceRequirements().get().getJobVertexParallelisms();
+    }
+
 
     /**
      * Shut down JobManagers gracefully by scaling JM deployment to zero. This avoids race

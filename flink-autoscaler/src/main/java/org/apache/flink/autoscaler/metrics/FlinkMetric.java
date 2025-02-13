@@ -19,10 +19,7 @@ package org.apache.flink.autoscaler.metrics;
 
 import org.apache.flink.runtime.rest.messages.job.metrics.AggregatedMetric;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -41,6 +38,12 @@ public enum FlinkMetric {
     PENDING_RECORDS(s -> s.endsWith(".pendingRecords")),
     BACKPRESSURE_TIME_PER_SEC(s -> s.equals("backPressuredTimeMsPerSecond")),
 
+    ROCKS_DB_BLOCK_CACHE_HIT(s -> s.endsWith(".rocksdb_block_cache_hit")),
+    ROCKS_DB_BLOCK_CACHE_MISS(s -> s.endsWith(".rocksdb_block_cache_miss")),
+    ROCKS_DB_BLOCK_CACHE_USAGE(s -> s.endsWith(".rocksdb_block-cache-usage")),
+    ROCKS_DB_ESTIMATE_NUM_KEYS(s -> s.endsWith(".rocksdb_estimate-num-keys")),
+    ROCKS_DB_LIVE_SST_FILES_SIZE(s -> s.endsWith(".rocksdb_live-sst-files-size")),
+
     HEAP_MEMORY_MAX(s -> s.equals("Status.JVM.Memory.Heap.Max")),
     HEAP_MEMORY_USED(s -> s.equals("Status.JVM.Memory.Heap.Used")),
     MANAGED_MEMORY_USED(s -> s.equals("Status.Flink.Memory.Managed.Used")),
@@ -49,7 +52,10 @@ public enum FlinkMetric {
     TOTAL_GC_TIME_PER_SEC(s -> s.equals("Status.JVM.GarbageCollector.All.TimeMsPerSecond")),
 
     NUM_TASK_SLOTS_TOTAL(s -> s.equals("taskSlotsTotal")),
-    NUM_TASK_SLOTS_AVAILABLE(s -> s.equals("taskSlotsAvailable"));
+    NUM_TASK_SLOTS_AVAILABLE(s -> s.equals("taskSlotsAvailable")),
+
+
+    LIST_STATE_GET_MEAN_LATENCY(s -> s.endsWith(".listStateGetLatency_p90")),;
 
     public static final Map<FlinkMetric, AggregatedMetric> FINISHED_METRICS =
             Map.of(
@@ -58,6 +64,15 @@ public enum FlinkMetric {
                     FlinkMetric.SOURCE_TASK_NUM_RECORDS_IN_PER_SEC, zero(),
                     FlinkMetric.SOURCE_TASK_NUM_RECORDS_IN, zero(),
                     FlinkMetric.SOURCE_TASK_NUM_RECORDS_OUT, zero());
+
+    public static final Set<FlinkMetric> JUSTIN_METRICS =
+            Set.of(
+                    FlinkMetric.ROCKS_DB_BLOCK_CACHE_HIT,
+                    FlinkMetric.ROCKS_DB_BLOCK_CACHE_MISS,
+                    FlinkMetric.ROCKS_DB_BLOCK_CACHE_USAGE,
+                    FlinkMetric.ROCKS_DB_ESTIMATE_NUM_KEYS,
+                    FlinkMetric.ROCKS_DB_LIVE_SST_FILES_SIZE,
+                    FlinkMetric.LIST_STATE_GET_MEAN_LATENCY);
 
     public final Predicate<String> predicate;
 

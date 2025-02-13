@@ -46,23 +46,7 @@ import java.util.SortedMap;
 import static org.apache.flink.autoscaler.config.AutoScalerOptions.BACKLOG_PROCESSING_LAG_THRESHOLD;
 import static org.apache.flink.autoscaler.config.AutoScalerOptions.TARGET_UTILIZATION;
 import static org.apache.flink.autoscaler.config.AutoScalerOptions.TARGET_UTILIZATION_BOUNDARY;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.CATCH_UP_DATA_RATE;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.GC_PRESSURE;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.HEAP_MAX_USAGE_RATIO;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.HEAP_MEMORY_USED;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.LAG;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.LOAD;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.MANAGED_MEMORY_USED;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.MAX_PARALLELISM;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.METASPACE_MEMORY_USED;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.NUM_SOURCE_PARTITIONS;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.NUM_TASK_SLOTS_USED;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.OBSERVED_TPR;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.PARALLELISM;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.SCALE_DOWN_RATE_THRESHOLD;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.SCALE_UP_RATE_THRESHOLD;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.TARGET_DATA_RATE;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.TRUE_PROCESSING_RATE;
+import static org.apache.flink.autoscaler.metrics.ScalingMetric.*;
 
 /** Job scaling evaluator for autoscaler. */
 public class ScalingMetricEvaluator {
@@ -171,6 +155,16 @@ public class ScalingMetricEvaluator {
         evaluatedMetrics.put(
                 NUM_SOURCE_PARTITIONS,
                 EvaluatedScalingMetric.of(vertexInfo.getNumSourcePartitions()));
+
+        if (latestVertexMetrics.containsKey(ROCKS_DB_BLOCK_CACHE_HIT_RATE)) {
+            evaluatedMetrics.put(
+                    ROCKS_DB_BLOCK_CACHE_HIT_RATE,
+                    new EvaluatedScalingMetric(
+                            latestVertexMetrics.get(ROCKS_DB_BLOCK_CACHE_HIT_RATE),
+                            getAverage(ROCKS_DB_BLOCK_CACHE_HIT_RATE, vertex, metricsHistory)
+                    )
+            );
+        }
 
         computeProcessingRateThresholds(evaluatedMetrics, conf, processingBacklog, restartTime);
         return evaluatedMetrics;

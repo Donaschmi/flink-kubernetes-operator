@@ -18,6 +18,7 @@
 package org.apache.flink.autoscaler;
 
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.api.common.JobID;
 import org.apache.flink.autoscaler.config.AutoScalerOptions;
 import org.apache.flink.autoscaler.event.AutoScalerEventHandler;
 import org.apache.flink.autoscaler.metrics.EvaluatedMetrics;
@@ -33,6 +34,7 @@ import org.apache.flink.autoscaler.utils.ResourceCheckUtils;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MemorySize;
 import org.apache.flink.configuration.TaskManagerOptions;
+import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.instance.SlotSharingGroupId;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 
@@ -49,16 +51,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 
-import static org.apache.flink.autoscaler.config.AutoScalerOptions.EXCLUDED_PERIODS;
-import static org.apache.flink.autoscaler.config.AutoScalerOptions.SCALING_ENABLED;
-import static org.apache.flink.autoscaler.config.AutoScalerOptions.SCALING_EVENT_INTERVAL;
+import static org.apache.flink.autoscaler.config.AutoScalerOptions.*;
 import static org.apache.flink.autoscaler.event.AutoScalerEventHandler.SCALING_EXECUTION_DISABLED_REASON;
 import static org.apache.flink.autoscaler.event.AutoScalerEventHandler.SCALING_SUMMARY_HEADER_SCALING_EXECUTION_DISABLED;
 import static org.apache.flink.autoscaler.event.AutoScalerEventHandler.SCALING_SUMMARY_HEADER_SCALING_EXECUTION_ENABLED;
 import static org.apache.flink.autoscaler.metrics.ScalingHistoryUtils.addToScalingHistoryAndStore;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.SCALE_DOWN_RATE_THRESHOLD;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.SCALE_UP_RATE_THRESHOLD;
-import static org.apache.flink.autoscaler.metrics.ScalingMetric.TRUE_PROCESSING_RATE;
+import static org.apache.flink.autoscaler.metrics.ScalingMetric.*;
 
 /** Class responsible for executing scaling decisions. */
 public class ScalingExecutor<KEY, Context extends JobAutoScalerContext<KEY>> {
@@ -79,6 +77,10 @@ public class ScalingExecutor<KEY, Context extends JobAutoScalerContext<KEY>> {
     private final AutoScalerStateStore<KEY, Context> autoScalerStateStore;
     private final ResourceCheck resourceCheck;
 
+    private final ScalingConfigurations scalingConfigurations;
+
+    private static final HashMap<JobID, Integer> periods = new HashMap<>();
+
     public ScalingExecutor(
             AutoScalerEventHandler<KEY, Context> autoScalerEventHandler,
             AutoScalerStateStore<KEY, Context> autoScalerStateStore) {
@@ -93,6 +95,7 @@ public class ScalingExecutor<KEY, Context extends JobAutoScalerContext<KEY>> {
         this.autoScalerEventHandler = autoScalerEventHandler;
         this.autoScalerStateStore = autoScalerStateStore;
         this.resourceCheck = resourceCheck != null ? resourceCheck : new NoopResourceCheck();
+        this.scalingConfigurations = new ScalingConfigurations();
     }
 
     public boolean scaleResource(
@@ -155,6 +158,25 @@ public class ScalingExecutor<KEY, Context extends JobAutoScalerContext<KEY>> {
                 context,
                 getVertexParallelismOverrides(
                         evaluatedMetrics.getVertexMetrics(), scalingSummaries));
+
+        if (conf.get(JUSTIN_ENABLED)) {
+            var currentScalingConf =
+                    scalingConfigurations.setCurrentConfiguration(
+                            context.getJobID(),
+                            evaluatedMetrics.getVertexMetrics(),
+                            scalingSummaries,
+                            periods.getOrDefault(context.getJobID(), 0));
+            policy(context, currentScalingConf, conf);
+            LOG.info(scalingConfigurations.toString());
+
+            autoScalerStateStore.storeParallelismOverrides(
+                    context,
+                    getVertexParallelismOverrides(currentScalingConf));
+
+            autoScalerStateStore.storeResourceProfileOverrides(
+                    context,
+                    getVertexResourceProfileOverrides(context.getJobID(), this.scalingConfigurations, conf));
+        }
 
         autoScalerStateStore.storeConfigChanges(context, configOverrides);
 
@@ -464,6 +486,32 @@ public class ScalingExecutor<KEY, Context extends JobAutoScalerContext<KEY>> {
         return overrides;
     }
 
+    private static Map<String, String> getVertexParallelismOverrides(
+            ScalingConfigurations.ScalingConfiguration scalingConfiguration) {
+        var overrides = new HashMap<String, String>();
+        scalingConfiguration.getScaling().forEach((
+                (jobVertexID, scalingInformation) -> {
+                    overrides.put(
+                            jobVertexID.toString(),
+                            String.valueOf(scalingInformation.getParallelism()));
+        }));
+
+        return overrides;
+    }
+
+    @VisibleForTesting
+    public static Map<String, String> getVertexResourceProfileOverrides(JobID jobID, ScalingConfigurations scalingConfigurations, Configuration conf) {
+        var overrides = new HashMap<String, String>();
+        scalingConfigurations.getCurrentConfiguration(jobID, periods.getOrDefault(jobID, 0)).getScaling().forEach((id, information) -> {
+            overrides.put(
+                    id.toString(),
+                    String.valueOf(getResourceProfile(conf, information.getMemoryLevel()))
+            );
+        } );
+        return overrides;
+    }
+
+
     private boolean checkIfBlockedAndTriggerScalingEvent(
             Context context,
             Map<JobVertexID, ScalingSummary> scalingSummaries,
@@ -493,5 +541,87 @@ public class ScalingExecutor<KEY, Context extends JobAutoScalerContext<KEY>> {
                 context, scalingSummaries, message, conf.get(SCALING_EVENT_INTERVAL));
 
         return !scaleEnabled || isExcluded;
+    }
+
+    private static ResourceProfile getResourceProfile(Configuration conf, int memoryLevel) {
+        var memory = conf.get(TaskManagerOptions.TOTAL_PROCESS_MEMORY);
+        if (memory.getGibiBytes() > 3) { // 4 GB
+            return ResourceProfile.newBuilder()
+                    .setCpuCores(1.0)
+                    .setTaskHeapMemoryMB(363)
+                    .setTaskOffHeapMemoryMB(0)
+                    .setManagedMemoryMB(memoryLevel == -1 ? 0 : (int) (343 * Math.pow(2, memoryLevel)))
+                    .setNetworkMemoryMB(84)
+                    .build();
+        } else {
+            return  ResourceProfile.newBuilder()
+                    .setCpuCores(1.0)
+                    .setTaskHeapMemoryMB(134)
+                    .setTaskOffHeapMemoryMB(0)
+                    .setManagedMemoryMB(memoryLevel == -1 ? 0 : (int) (158 * Math.pow(2, memoryLevel)))
+                    .setNetworkMemoryMB(39)
+                    .build();
+        }
+    }
+
+    private void policy(Context context, ScalingConfigurations.ScalingConfiguration scaling, Configuration conf) {
+        scaling.getScaling().forEach((id, information) -> {
+            var previousInformation =
+                    scalingConfigurations.getPreviousScalingInformation(
+                            context.getJobID(),
+                            id,
+                            periods.getOrDefault(context.getJobID(), 0));
+            if (information.getAvgCacheHitRate() == 0.0) { // Stateless
+                information.setMemoryLevel(-1);
+            } else {
+                if (previousInformation != null) {
+                    if ( previousInformation.getParallelism() != information.getParallelism()) {
+                        if (previousInformation.isVerticalScaling()) {
+                            if (((information.getAvgCacheHitRate() > previousInformation.getAvgCacheHitRate()
+                                        && information.getAvgCacheHitRate() < conf.get(MAX_CACHE_HIT_RATE_THRESHOLD))
+                                    || information.getAvgStateLatency() < previousInformation.getAvgStateLatency())
+                             && previousInformation.getMemoryLevel()+1 < ScalingConfigurations.MAX_MEMORY_LEVEL) {
+                                information.setParallelism(previousInformation.getParallelism());
+                                information.setMemoryLevel(Math.min(previousInformation.getMemoryLevel()+1, ScalingConfigurations.MAX_MEMORY_LEVEL));
+                                information.setVerticalScaling(true);
+                            } else {
+                                information.setHorizontalScaling(true);
+                                information.setMemoryLevel(previousInformation.getMemoryLevel());
+                            }
+                        } else {
+                            if ((information.getAvgCacheHitRate() < conf.get(MIN_CACHE_HIT_RATE_THRESHOLD))
+                                    || information.getAvgStateLatency() > conf.get(STATE_ACCESS_LATENCY_THRESHOLD)) {
+                                information.setParallelism(previousInformation.getParallelism());
+                                information.setMemoryLevel(Math.min(previousInformation.getMemoryLevel()+1, ScalingConfigurations.MAX_MEMORY_LEVEL));
+                                information.setVerticalScaling(true);
+                            } else {
+                                information.setHorizontalScaling(true);
+                                information.setMemoryLevel(previousInformation.getMemoryLevel());
+                            }
+                        }
+                    }
+                } else { // First decision
+                    LOG.info("Making first scaling decision for job {}", context.getJobID());
+                    if (information.getParallelism() != 1) { // Scale out decision
+                        if (information.getAvgCacheHitRate() < conf.get(MIN_CACHE_HIT_RATE_THRESHOLD)
+                                || information.getAvgStateLatency() > conf.get(STATE_ACCESS_LATENCY_THRESHOLD)) {
+                            information.setParallelism(1);
+                            information.setMemoryLevel(1);
+                            information.setVerticalScaling(true);
+                        } else {
+                            information.setHorizontalScaling(true);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    public static void scalingTriggered(JobID jobID) {
+        var newPeriod = periods.getOrDefault(jobID, 0) + 1;
+        periods.put(jobID, newPeriod);
+        LOG.info("Incrementing scaling period for job {}. New period: {}",
+                jobID,
+                newPeriod);
     }
 }

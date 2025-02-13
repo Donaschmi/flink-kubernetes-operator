@@ -37,7 +37,7 @@ public class KubernetesScalingRealizerTest {
     @Test
     public void testApplyOverrides() {
         // Required to keep the test config context on legacy Flink YAML converters.
-        GlobalConfiguration.setStandardYaml(false);
+        //GlobalConfiguration.setStandardYaml(false);
 
         KubernetesJobAutoScalerContext ctx =
                 TestingKubernetesAutoscalerUtils.createContext("test", null);

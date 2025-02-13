@@ -59,6 +59,13 @@ public class AutoScalerOptions {
                     .withDescription(
                             "Enable vertex scaling execution by the autoscaler. If disabled, the autoscaler will only collect metrics and evaluate the suggested parallelism for each vertex but will not upgrade the jobs.");
 
+    public static final ConfigOption<Boolean> JUSTIN_ENABLED =
+            autoScalerConfig("justin.enabled")
+                    .booleanType()
+                    .defaultValue(false)
+                    .withFallbackKeys(oldOperatorConfigKey("justin.enabled"))
+                    .withDescription("Enable Justin Autoscaler.");
+
     public static final ConfigOption<Duration> METRICS_WINDOW =
             autoScalerConfig("metrics.window")
                     .durationType()
@@ -364,4 +371,19 @@ public class AutoScalerOptions {
                                             "scaling.key-group.partitions.adjust.mode"))
                             .withDescription(
                                     "How to adjust the parallelism of Source vertex or upstream shuffle is keyBy");
+
+    public static final ConfigOption<Double> MIN_CACHE_HIT_RATE_THRESHOLD =
+            autoScalerConfig("cache-hit-rate.min.threshold")
+                    .doubleType()
+                    .defaultValue(0.7);
+
+    public static final ConfigOption<Double> MAX_CACHE_HIT_RATE_THRESHOLD =
+            autoScalerConfig("cache-hit-rate.max.threshold")
+                    .doubleType()
+                    .defaultValue(0.95);
+
+    public static final ConfigOption<Double> STATE_ACCESS_LATENCY_THRESHOLD =
+            autoScalerConfig("state-latency.threshold")
+                    .doubleType()
+                    .defaultValue(100000.0);
 }

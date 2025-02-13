@@ -20,6 +20,7 @@ package org.apache.flink.autoscaler;
 import org.apache.flink.autoscaler.metrics.EvaluatedScalingMetric;
 import org.apache.flink.autoscaler.metrics.ScalingMetric;
 
+import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Data;
@@ -36,6 +37,10 @@ public class ScalingSummary {
 
     private int newParallelism;
 
+    private ResourceProfile currentResourceProfile;
+
+    private ResourceProfile newResourceProfile;
+
     private Map<ScalingMetric, EvaluatedScalingMetric> metrics;
 
     public ScalingSummary(
@@ -43,13 +48,18 @@ public class ScalingSummary {
             int newParallelism,
             Map<ScalingMetric, EvaluatedScalingMetric> metrics) {
         if (currentParallelism == newParallelism) {
-            throw new IllegalArgumentException(
-                    "Current parallelism should not be equal to newParallelism during scaling.");
+            //throw new IllegalArgumentException(
+            //        "Current parallelism should not be equal to newParallelism during scaling.");
         }
         this.currentParallelism = currentParallelism;
         this.newParallelism = newParallelism;
         this.metrics = metrics;
     }
+
+    public void setNewResourceProfile(ResourceProfile rp) {
+        this.newResourceProfile = rp;
+    }
+
 
     @JsonIgnore
     public boolean isScaledUp() {

@@ -24,10 +24,12 @@ import org.apache.flink.autoscaler.JobAutoScalerContext;
 import org.apache.flink.autoscaler.config.AutoScalerOptions;
 import org.apache.flink.autoscaler.event.AutoScalerEventHandler;
 import org.apache.flink.autoscaler.realizer.ScalingRealizer;
+import org.apache.flink.autoscaler.utils.justin.*;
 import org.apache.flink.autoscaler.tuning.ConfigChanges;
 import org.apache.flink.client.program.rest.RestClusterClient;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.JobManagerOptions;
+import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.jobgraph.JobResourceRequirements;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobgraph.JobVertexResourceRequirements;
@@ -162,5 +164,139 @@ public class RescaleApiScalingRealizer<KEY, Context extends JobAutoScalerContext
 
         client.sendRequest(new JobResourcesRequirementsUpdateHeaders(), jobParameters, requestBody)
                 .get(restClientTimeout.toSeconds(), TimeUnit.SECONDS);
+    }
+
+    @Override
+    public void realizeParallelismOverrides(
+            Context context, Map<String, String> parallelismOverrides, Map<String, String> justinOverrides) throws Exception {
+        Configuration conf = context.getConfiguration();
+        if (!conf.get(JobManagerOptions.SCHEDULER)
+                .equals(JobManagerOptions.SchedulerType.Adaptive)) {
+            LOG.warn("In-place rescaling is only available with the adaptive scheduler.");
+            return;
+        }
+
+        var jobID = context.getJobID();
+        if (JobStatus.RUNNING != context.getJobStatus()) {
+            LOG.warn("Job in terminal or reconciling state cannot be scaled in-place.");
+            return;
+        }
+
+        var flinkRestClientTimeout = conf.get(AutoScalerOptions.FLINK_CLIENT_TIMEOUT);
+
+        try (var client = context.getRestClusterClient()) {
+            var requirements =
+                    new HashMap<>(getJustinResources(client, jobID, flinkRestClientTimeout));
+            var parallelismUpdated = false;
+
+            for (Map.Entry<JobVertexID, JustinVertexResourceRequirements> entry :
+                    requirements.entrySet()) {
+                var jobVertexId = entry.getKey().toString();
+                var parallelism = entry.getValue().getParallelism();
+                var resourceProfile = entry.getValue().getResourceProfile();
+                var overrideParallelism = parallelismOverrides.get(jobVertexId);
+                var overrideResourceProfile = justinOverrides.get(jobVertexId);
+
+                // No overrides for this vertex
+                if (overrideParallelism == null || overrideResourceProfile == null) {
+                    continue;
+                }
+
+                // We have an override for the vertex
+                var p = Integer.parseInt(overrideParallelism);
+                var newParallelism = new JustinVertexResourceRequirements.Parallelism(1, p);
+                var newResourceProfile = parseResourceProfile(overrideResourceProfile);
+
+                // If the requirements changed we mark this as scaling triggered
+                if (!parallelism.equals(newParallelism) || !resourceProfile.equals(newResourceProfile)) {
+                    entry.setValue(new JustinVertexResourceRequirements(newParallelism, newResourceProfile));
+                    parallelismUpdated = true;
+                }
+            }
+            if (parallelismUpdated) {
+                updateJustinResources(client, jobID, flinkRestClientTimeout, requirements);
+                eventHandler.handleEvent(
+                        context,
+                        AutoScalerEventHandler.Type.Normal,
+                        SCALING,
+                        String.format(
+                                "In-place scaling triggered, the new requirements is %s.",
+                                requirements),
+                        null,
+                        null);
+            } else {
+                LOG.info("Vertex resources requirements already match target, nothing to do...");
+            }
+        }
+    }
+
+
+    private Map<JobVertexID, JustinVertexResourceRequirements> getJustinResources(
+            RestClusterClient<String> client, JobID jobID, Duration restClientTimeout)
+            throws Exception {
+        var jobParameters = new JobMessageParameters();
+        jobParameters.jobPathParameter.resolve(jobID);
+
+        var currentRequirements =
+                client.sendRequest(
+                                new JustinResourceRequirementsHeaders(),
+                                jobParameters,
+                                EmptyRequestBody.getInstance())
+                        .get(restClientTimeout.toSeconds(), TimeUnit.SECONDS);
+
+        return currentRequirements.asJustinResourceRequirements().get().getJobVertexParallelisms();
+    }
+
+    private void updateJustinResources(
+            RestClusterClient<String> client,
+            JobID jobID,
+            Duration restClientTimeout,
+            Map<JobVertexID, JustinVertexResourceRequirements> newReqs)
+            throws Exception {
+        var jobParameters = new JobMessageParameters();
+        jobParameters.jobPathParameter.resolve(jobID);
+
+        var requestBody = new JustinResourceRequirementsBody(new JustinResourceRequirements(newReqs));
+
+        client.sendRequest(new JustinResourceRequirementsUpdateHeaders(), jobParameters, requestBody)
+                .get(restClientTimeout.toSeconds(), TimeUnit.SECONDS);
+    }
+
+    public static ResourceProfile parseResourceProfile(String s) {
+        String delim = "[{}]+";
+        String[] strings = s.split(delim);
+        if (strings.length <= 0 || !strings[0].equals(ResourceProfile.class.getSimpleName())) {
+            return ResourceProfile.UNKNOWN;
+        } else if (strings.length == 2) {
+            if (strings[1].contains("UNKNOWN")) {
+                return ResourceProfile.UNKNOWN;
+            }
+            String[] profiles = strings[1].split(", ");
+            ResourceProfile.Builder resourceProfile = ResourceProfile.newBuilder()
+                    .setCpuCores(Double.parseDouble(profiles[0].split("=")[1]))
+                    .setTaskHeapMemoryMB(parseMemoryFromResourceProfile(profiles[1]))
+                    .setTaskOffHeapMemoryMB(parseMemoryFromResourceProfile(profiles[2]))
+                    .setManagedMemoryMB(parseMemoryFromResourceProfile(profiles[3]))
+                    .setNetworkMemoryMB(parseMemoryFromResourceProfile(profiles[4]));
+            return resourceProfile.build();
+
+        } else {
+            return ResourceProfile.UNKNOWN;
+        }
+    }
+
+    private static int parseMemoryFromResourceProfile(String s) {
+        String parsed = s.substring(s.indexOf("=") + 1, s.indexOf(" "));
+        if (parsed.equals("0")) {
+            return 0;
+        }
+        System.out.println(parsed);
+        int value = Integer.parseInt(parsed.split("\\.")[0]);
+        if (parsed.contains("gb")) {
+            value *= 1024;
+        } else if (parsed.contains("kb")) {
+            value /= 1024;
+        }
+        return value;
     }
 }

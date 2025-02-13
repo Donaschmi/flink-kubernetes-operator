@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.apache.flink.autoscaler.config.AutoScalerOptions.AUTOSCALER_ENABLED;
+import static org.apache.flink.autoscaler.config.AutoScalerOptions.JUSTIN_ENABLED;
 import static org.apache.flink.autoscaler.metrics.AutoscalerFlinkMetrics.initRecommendedParallelism;
 import static org.apache.flink.autoscaler.metrics.AutoscalerFlinkMetrics.resetRecommendedParallelism;
 import static org.apache.flink.autoscaler.metrics.ScalingHistoryUtils.getTrimmedScalingHistory;
@@ -56,7 +57,7 @@ public class JobAutoScalerImpl<KEY, Context extends JobAutoScalerContext<KEY>>
     private final ScalingMetricEvaluator evaluator;
     private final ScalingExecutor<KEY, Context> scalingExecutor;
     private final AutoScalerEventHandler<KEY, Context> eventHandler;
-    private final ScalingRealizer<KEY, Context> scalingRealizer;
+    private ScalingRealizer<KEY, Context> scalingRealizer;
     private final AutoScalerStateStore<KEY, Context> stateStore;
 
     private Clock clock = Clock.systemDefaultZone();
@@ -85,7 +86,6 @@ public class JobAutoScalerImpl<KEY, Context extends JobAutoScalerContext<KEY>>
     @Override
     public void scale(Context ctx) throws Exception {
         var autoscalerMetrics = getOrInitAutoscalerFlinkMetrics(ctx);
-
         try {
             if (!ctx.getConfiguration().getBoolean(AUTOSCALER_ENABLED)) {
                 LOG.debug("Autoscaler is disabled");
@@ -108,7 +108,11 @@ public class JobAutoScalerImpl<KEY, Context extends JobAutoScalerContext<KEY>>
             onError(ctx, autoscalerMetrics, e);
         } finally {
             try {
-                applyParallelismOverrides(ctx);
+                if (ctx.getConfiguration().getBoolean(JUSTIN_ENABLED)) {
+                    applyResourceProfileOverrides(ctx);
+                } else {
+                    applyParallelismOverrides(ctx);
+                }
                 applyConfigOverrides(ctx);
             } catch (Exception e) {
                 LOG.error("Error applying overrides.", e);
@@ -129,6 +133,11 @@ public class JobAutoScalerImpl<KEY, Context extends JobAutoScalerContext<KEY>>
     @VisibleForTesting
     protected Map<String, String> getParallelismOverrides(Context ctx) throws Exception {
         return stateStore.getParallelismOverrides(ctx);
+    }
+
+    @VisibleForTesting
+    protected Map<String, String> getResourceProfileOverrides(Context ctx) throws Exception {
+        return stateStore.getResourceProfileOverrides(ctx);
     }
 
     /**
@@ -161,6 +170,24 @@ public class JobAutoScalerImpl<KEY, Context extends JobAutoScalerContext<KEY>>
         scalingRealizer.realizeParallelismOverrides(ctx, userOverrides);
     }
 
+    /**
+     * If there are any parallelism overrides by the {@link JobAutoScaler} apply them to the
+     * scalingRealizer.
+     *
+     * @param ctx Job context
+     */
+    @VisibleForTesting
+    protected void applyResourceProfileOverrides(Context ctx) throws Exception {
+        var parallelismOverrides = getParallelismOverrides(ctx);
+        var resourceProfileOverrides = getResourceProfileOverrides(ctx);
+        if (parallelismOverrides.isEmpty() && resourceProfileOverrides.isEmpty()) {
+            return;
+        }
+        LOG.debug("Applying parallelism overrides: {}, {}", parallelismOverrides, resourceProfileOverrides);
+
+        scalingRealizer.realizeParallelismOverrides(ctx, parallelismOverrides, resourceProfileOverrides);
+    }
+
     @VisibleForTesting
     void applyConfigOverrides(Context ctx) throws Exception {
         if (!ctx.getConfiguration().get(AutoScalerOptions.MEMORY_TUNING_ENABLED)) {
@@ -174,6 +201,8 @@ public class JobAutoScalerImpl<KEY, Context extends JobAutoScalerContext<KEY>>
 
     private void runScalingLogic(Context ctx, AutoscalerFlinkMetrics autoscalerMetrics)
             throws Exception {
+
+        var justinEnabled = ctx.getConfiguration().getBoolean(JUSTIN_ENABLED);
 
         var collectedMetrics = metricsCollector.updateMetrics(ctx, stateStore);
         var jobTopology = collectedMetrics.getJobTopology();

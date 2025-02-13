@@ -18,3 +18,5 @@
 
 FROM flink:1.18
 COPY ./target/autoscaling*.jar /opt/flink/usrlib/autoscaling.jar
+RUN  mkdir ./plugins/s3-fs-hadoop; \
+    cp ./opt/flink-s3-fs-hadoop-1.18.1.jar ./plugins/s3-fs-hadoop

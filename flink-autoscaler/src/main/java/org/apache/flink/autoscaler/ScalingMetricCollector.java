@@ -347,7 +347,17 @@ public abstract class ScalingMetricCollector<KEY, Context extends JobAutoScalerC
                                     metricHistory,
                                     conf.get(
                                             AutoScalerOptions
+
                                                     .OBSERVED_TRUE_PROCESSING_RATE_MIN_OBSERVATIONS)));
+
+                    if (vertexFlinkMetrics.keySet().stream().anyMatch(flinkMetric -> flinkMetric.toString().contains("ROCKS_DB"))) {
+                        LOG.debug("Vertex {} is stateful. Collecting metrics", jobVertexID);
+                        ScalingMetrics.computeCacheRateMetrics(vertexFlinkMetrics, vertexScalingMetrics);
+                        vertexScalingMetrics.put(
+                                ScalingMetric.LIST_STATE_GET_MEAN_LATENCY,
+                                vertexFlinkMetrics.get(FlinkMetric.LIST_STATE_GET_MEAN_LATENCY).getAvg());
+                    }
+
                     vertexScalingMetrics
                             .entrySet()
                             .forEach(e -> e.setValue(ScalingMetrics.roundMetric(e.getValue())));
@@ -463,6 +473,8 @@ public abstract class ScalingMetricCollector<KEY, Context extends JobAutoScalerC
                     .findAny(allMetricNames)
                     .ifPresent(
                             m -> filteredMetrics.put(m, FlinkMetric.SOURCE_TASK_NUM_RECORDS_OUT));
+        } else {
+            requiredMetrics.addAll(FlinkMetric.JUSTIN_METRICS);
         }
 
         for (FlinkMetric flinkMetric : requiredMetrics) {

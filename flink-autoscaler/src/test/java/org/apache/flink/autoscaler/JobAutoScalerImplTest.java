@@ -201,6 +201,11 @@ public class JobAutoScalerImplTest {
                 realizeParallelismOverridesWithExceptionsScalingRealizer =
                         new ScalingRealizer<>() {
                             @Override
+                            public void realizeParallelismOverrides(JobAutoScalerContext<JobID> context, Map<String, String> parallelismOverrides, Map<String, String> justinOverrides) throws Exception {
+
+                            }
+
+                            @Override
                             public void realizeConfigOverrides(
                                     JobAutoScalerContext context, ConfigChanges configChanges) {}
 

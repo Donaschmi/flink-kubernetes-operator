@@ -25,7 +25,7 @@ spec:
   flinkVersion: v1_18
   flinkConfiguration:
     job.autoscaler.enabled: "true"
-    job.autoscaler.justin.enabled: "true"
+    job.autoscaler.justin.enabled: "false"
     job.autoscaler.stabilization.interval: "3m"
     job.autoscaler.cache-hit-rate.min.threshold: "0.8"
     #job.autoscaler.cache-hit-rate.max.threshold: "0.95"
@@ -123,7 +123,7 @@ spec:
               - /bin/sh
               - -c
               - "wget -O /opt/flink/downloads/job.jar \
-                https://forge.uclouvain.be/DonatienSchmitz/justin/-/raw/main/nexmark/Query8.jar"
+                https://forge.uclouvain.be/DonatienSchmitz/justin/-/raw/main/nexmark/Query1.jar"
   taskManager:
     resource:
       memory: "2048m"
@@ -138,26 +138,10 @@ spec:
     parallelism: 1
     upgradeMode: stateless
     args:
-      - "--auction-srcRate"
-      - "28000"
-      - "--person-srcRate"
-      - "17000"
-      - "--p-auction-source"
-      - "3"
-      - "--p-person-source"
-      - "3"
-      - "--fixedRate"
-      - "true"
-      - "--changingRateInterval"
-      - "180000"
-      - "--changingRateRatio"
-      - "0.65"
-      - "--changingRateSteps"
-      - "2"
-      - "--window-size"
-      - "10"
-      - "--stateless"
-      - "true"
+      - "--srcRate"
+      - "300000"
+      - "--p-source"
+      - "4"
 
   logConfiguration:
     "log4j-console.properties": |

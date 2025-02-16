@@ -577,7 +577,7 @@ public class ScalingExecutor<KEY, Context extends JobAutoScalerContext<KEY>> {
                 if (previousInformation != null) {
                     if ( previousInformation.getParallelism() != information.getParallelism()) {
                         if (previousInformation.isVerticalScaling()) {
-                            if (((information.getAvgCacheHitRate() > previousInformation.getAvgCacheHitRate()
+                            if (((information.getAvgCacheHitRate() - previousInformation.getAvgCacheHitRate() > conf.get(IMPROVED_CACHE_HIT_RATE_THRESHOLD)
                                         && information.getAvgCacheHitRate() < conf.get(MAX_CACHE_HIT_RATE_THRESHOLD))
                                     || information.getAvgStateLatency() < previousInformation.getAvgStateLatency())
                              && previousInformation.getMemoryLevel()+1 < ScalingConfigurations.MAX_MEMORY_LEVEL) {

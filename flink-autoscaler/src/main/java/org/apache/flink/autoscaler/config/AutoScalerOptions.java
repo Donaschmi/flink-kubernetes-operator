@@ -382,6 +382,11 @@ public class AutoScalerOptions {
                     .doubleType()
                     .defaultValue(0.95);
 
+    public static final ConfigOption<Double> IMPROVED_CACHE_HIT_RATE_THRESHOLD =
+            autoScalerConfig("cache-hit-rate.improved.threshold")
+                    .doubleType()
+                    .defaultValue(0.05);
+
     public static final ConfigOption<Double> STATE_ACCESS_LATENCY_THRESHOLD =
             autoScalerConfig("state-latency.threshold")
                     .doubleType()

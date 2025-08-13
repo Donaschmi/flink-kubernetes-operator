@@ -195,6 +195,24 @@ public class JdbcAutoScalerStateStore<KEY, Context extends JobAutoScalerContext<
     }
 
     @Override
+    public void storeResourceProfileOverrides(
+            Context jobContext, Map<String, String> parallelismOverrides) {
+        
+    }
+
+    @Nonnull
+    @Override
+    public Map<String, String> getResourceProfileOverrides(Context jobContext) {
+        return new HashMap<>(); // Not implemented in this version
+    }
+
+
+    @Override
+    public void removeResourceProfileOverrides(Context jobContext) {
+        
+    }
+
+    @Override
     public void storeConfigChanges(Context jobContext, ConfigChanges configChanges) {
         jdbcStateStore.putSerializedState(
                 getSerializeKey(jobContext),
